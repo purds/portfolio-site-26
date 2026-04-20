@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { sections } from "@/data/sections";
 import { MagneticTarget } from "@/components/cursor/MagneticTarget";
+import { useParticles } from "@/lib/particle-context";
 
 interface SidebarProps {
   activeSection: string;
@@ -9,6 +11,40 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
+  const particlesRef = useParticles();
+  const prevSection = useRef(activeSection);
+
+  useEffect(() => {
+    if (prevSection.current === activeSection) return;
+    if (!particlesRef?.current) return;
+
+    const prevIndex = sections.findIndex((s) => s.id === prevSection.current);
+    const nextIndex = sections.findIndex((s) => s.id === activeSection);
+    const prevAccent = sections[prevIndex]?.accent ?? "#FF5F1F";
+
+    const sidebarX = 40;
+    const tileGap = 60;
+    const startY = window.innerHeight / 2 - (sections.length * tileGap) / 2 + prevIndex * tileGap;
+    const endY = window.innerHeight / 2 - (sections.length * tileGap) / 2 + nextIndex * tileGap;
+
+    const steps = 8;
+    for (let i = 0; i < steps; i++) {
+      const t = i / steps;
+      const y = startY + (endY - startY) * t;
+      setTimeout(() => {
+        particlesRef.current?.emit(sidebarX, y, 2, {
+          color: prevAccent,
+          speed: 1,
+          size: 5,
+          decay: 0.03,
+          spread: 0.5,
+        });
+      }, i * 50);
+    }
+
+    prevSection.current = activeSection;
+  }, [activeSection, particlesRef]);
+
   return (
     <nav
       className="fixed left-0 top-0 z-50 hidden h-screen w-20 flex-col items-center justify-center gap-3 lg:flex"

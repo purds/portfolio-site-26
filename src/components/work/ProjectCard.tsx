@@ -6,6 +6,7 @@ import { useGSAP } from "@gsap/react";
 import type { Project } from "@/data/projects";
 import { MagneticTarget } from "@/components/cursor/MagneticTarget";
 import { useIsDesktop } from "@/lib/use-is-desktop";
+import { useParticles } from "@/lib/particle-context";
 
 gsap.registerPlugin(useGSAP);
 
@@ -19,6 +20,7 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLElement>(null);
   const isDesktop = useIsDesktop();
+  const particlesRef = useParticles();
 
   const { contextSafe } = useGSAP({ scope: cardRef });
 
@@ -42,6 +44,30 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
         }
       );
       setExpanded(true);
+
+      // Particle burst on expand
+      if (particlesRef?.current && cardRef.current) {
+        const rect = cardRef.current.getBoundingClientRect();
+        const color = accentColor;
+        const emitter = particlesRef.current;
+
+        // Top edge
+        emitter.emit(rect.left + rect.width / 2, rect.top, 6, {
+          color, speed: 4, direction: -Math.PI / 2, spread: Math.PI * 0.6, decay: 0.025,
+        });
+        // Bottom edge
+        emitter.emit(rect.left + rect.width / 2, rect.bottom, 6, {
+          color, speed: 4, direction: Math.PI / 2, spread: Math.PI * 0.6, decay: 0.025,
+        });
+        // Left edge
+        emitter.emit(rect.left, rect.top + rect.height / 2, 4, {
+          color, speed: 3, direction: Math.PI, spread: Math.PI * 0.4, decay: 0.025,
+        });
+        // Right edge
+        emitter.emit(rect.right, rect.top + rect.height / 2, 4, {
+          color, speed: 3, direction: 0, spread: Math.PI * 0.4, decay: 0.025,
+        });
+      }
     } else {
       // Contract
       gsap.to(content, {
