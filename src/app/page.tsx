@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { StatusBar } from "@/components/layout/StatusBar";
 import { Hello } from "@/components/sections/Hello";
+import { Work } from "@/components/sections/Work";
 import { useActiveSection } from "@/lib/use-active-section";
 import { useIsDesktop } from "@/lib/use-is-desktop";
 import { sections } from "@/data/sections";
@@ -35,6 +36,8 @@ export default function Home() {
           >
             {section.id === "hello" ? (
               <Hello />
+            ) : section.id === "work" ? (
+              <Work />
             ) : (
               <div className="px-6 py-20 lg:px-16">
                 <span
