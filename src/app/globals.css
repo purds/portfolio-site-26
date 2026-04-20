@@ -112,6 +112,13 @@ body {
   }
 }
 
+/* Focus visible for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--color-accent-orange);
+  outline-offset: 2px;
+  border-radius: var(--radius-cell);
+}
+
 /* Max line length for readability */
 .prose-width {
   max-width: 65ch;

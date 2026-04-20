@@ -13,6 +13,7 @@ import { useActiveSection } from "@/lib/use-active-section";
 import { useIsDesktop } from "@/lib/use-is-desktop";
 import { sections } from "@/data/sections";
 import { CustomCursor } from "@/components/cursor/CustomCursor";
+import { useReducedMotion } from "@/lib/use-reduced-motion";
 import { ParticleCanvas } from "@/components/particles/ParticleCanvas";
 import type { ParticleCanvasHandle } from "@/components/particles/ParticleCanvas";
 import { ParticleContext } from "@/lib/particle-context";
@@ -30,6 +31,7 @@ const sectionComponents: Record<string, React.ComponentType> = {
 export default function Home() {
   const activeSection = useActiveSection(sectionIds);
   const isDesktop = useIsDesktop();
+  const reducedMotion = useReducedMotion();
   const particlesRef = useRef<ParticleCanvasHandle>(null);
 
   const handleNavigate = useCallback((sectionId: string) => {
@@ -39,14 +41,14 @@ export default function Home() {
 
   return (
     <>
-      {isDesktop && <CustomCursor />}
+      {isDesktop && !reducedMotion && <CustomCursor />}
       {isDesktop ? (
         <Sidebar activeSection={activeSection} onNavigate={handleNavigate} />
       ) : (
         <MobileNav activeSection={activeSection} onNavigate={handleNavigate} />
       )}
       <StatusBar activeSection={activeSection} />
-      {isDesktop && <ParticleCanvas ref={particlesRef} />}
+      {isDesktop && !reducedMotion && <ParticleCanvas ref={particlesRef} />}
 
       <ParticleContext.Provider value={particlesRef}>
       <main className="pt-14 lg:pl-20 lg:pt-0">
