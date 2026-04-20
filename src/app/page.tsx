@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { MobileNav } from "@/components/layout/MobileNav";
 import { StatusBar } from "@/components/layout/StatusBar";
 import { Hero } from "@/components/sections/Hero";
 import { Hello } from "@/components/sections/Hello";
@@ -35,12 +36,14 @@ export default function Home() {
   return (
     <>
       {isDesktop && <CustomCursor />}
-      {isDesktop && (
+      {isDesktop ? (
         <Sidebar activeSection={activeSection} onNavigate={handleNavigate} />
+      ) : (
+        <MobileNav activeSection={activeSection} onNavigate={handleNavigate} />
       )}
       <StatusBar activeSection={activeSection} />
 
-      <main className="lg:pl-20">
+      <main className="pt-14 lg:pl-20 lg:pt-0">
         {sections.map((section) => {
           const Component = sectionComponents[section.id];
           return (
