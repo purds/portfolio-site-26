@@ -175,17 +175,27 @@ export class GridCanvas {
       for (let c = minCol; c <= maxCol; c++) {
         if (r < 0 || r >= this.rows || c < 0 || c >= this.cols) continue;
         const cell = this.cells[r][c];
-        const dx = c - centerCol;
-        const dy = r - centerRow;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        let dx = c - centerCol;
+        let dy = r - centerRow;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Single-cell selection: give random outward direction
+        if (dist === 0) {
+          const angle = Math.random() * Math.PI * 2;
+          dx = Math.cos(angle);
+          dy = Math.sin(angle);
+        } else {
+          dx /= dist;
+          dy /= dist;
+        }
 
         this.disintegratingCells.push({
           col: c,
           row: r,
           x: cell.x,
           y: cell.y,
-          vx: (dx / dist) * (3 + Math.random() * 4),
-          vy: (dy / dist) * (3 + Math.random() * 4),
+          vx: dx * (3 + Math.random() * 4),
+          vy: dy * (3 + Math.random() * 4),
           opacity: 1,
         });
 
