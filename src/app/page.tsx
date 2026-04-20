@@ -1,28 +1,54 @@
+"use client";
+
+import { useCallback } from "react";
+import { Sidebar } from "@/components/layout/Sidebar";
+import { StatusBar } from "@/components/layout/StatusBar";
+import { useActiveSection } from "@/lib/use-active-section";
+import { useIsDesktop } from "@/lib/use-is-desktop";
+import { sections } from "@/data/sections";
+
+const sectionIds = sections.map((s) => s.id);
+
 export default function Home() {
+  const activeSection = useActiveSection(sectionIds);
+  const isDesktop = useIsDesktop();
+
+  const handleNavigate = useCallback((sectionId: string) => {
+    const el = document.getElementById(sectionId);
+    el?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
   return (
-    <main className="min-h-screen bg-bg-base p-12">
-      <h1
-        className="font-display text-display-xl font-bold text-text-primary"
-      >
-        PURDYGOOD
-      </h1>
-      <p className="mt-4 font-body text-body text-text-secondary prose-width">
-        Motion design (the kind that moves people, not just pixels). Based in
-        Brooklyn (by way of wherever).
-      </p>
-      <p className="mt-4 font-mono text-mono text-text-secondary">
-        02a — Explainer Videos
-      </p>
-      <div className="mt-8 rounded-card bg-bg-surface p-8">
-        <p className="text-text-primary">Card surface</p>
-      </div>
-      <div className="mt-4 flex gap-3">
-        <span className="rounded-full bg-accent-orange px-3 py-1 text-sm text-white">Orange</span>
-        <span className="rounded-full bg-accent-purple px-3 py-1 text-sm text-white">Purple</span>
-        <span className="rounded-full bg-accent-green px-3 py-1 text-sm text-white">Green</span>
-        <span className="rounded-full bg-accent-pink px-3 py-1 text-sm text-white">Pink</span>
-        <span className="rounded-full bg-accent-blue px-3 py-1 text-sm text-white">Blue</span>
-      </div>
-    </main>
+    <>
+      {isDesktop && (
+        <Sidebar activeSection={activeSection} onNavigate={handleNavigate} />
+      )}
+      <StatusBar activeSection={activeSection} />
+
+      <main className="lg:pl-20">
+        {sections.map((section) => (
+          <section
+            key={section.id}
+            id={section.id}
+            className="flex min-h-screen items-center justify-center"
+          >
+            <div className="px-6 py-20 lg:px-16">
+              <span
+                className="font-mono text-mono"
+                style={{ color: section.accent }}
+              >
+                ({section.number})
+              </span>
+              <h2 className="mt-2 font-display text-display font-bold">
+                {section.label}
+              </h2>
+              <p className="mt-4 text-text-secondary">
+                Section content goes here
+              </p>
+            </div>
+          </section>
+        ))}
+      </main>
+    </>
   );
 }
