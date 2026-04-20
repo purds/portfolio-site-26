@@ -1,3 +1,12 @@
+"use client";
+
+import { useRef } from "react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useGSAP } from "@gsap/react";
+
+gsap.registerPlugin(ScrollTrigger, useGSAP);
+
 const skillCategories = [
   {
     label: "Motion",
@@ -10,11 +19,34 @@ const skillCategories = [
 ];
 
 export function About() {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      gsap.from("[data-animate]", {
+        y: 40,
+        opacity: 0,
+        duration: 0.8,
+        ease: "expo.out",
+        stagger: 0.15,
+        scrollTrigger: {
+          trigger: containerRef.current,
+          start: "top 75%",
+          toggleActions: "play none none none",
+        },
+      });
+    },
+    { scope: containerRef }
+  );
+
   return (
-    <div className="mx-auto max-w-6xl px-6 py-24 lg:px-16">
+    <div ref={containerRef} className="mx-auto max-w-6xl px-6 py-24 lg:px-16">
       <div className="grid gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
         {/* Photo */}
-        <div className="relative aspect-[4/5] overflow-hidden rounded-card bg-bg-surface">
+        <div
+          data-animate
+          className="relative aspect-[4/5] overflow-hidden rounded-card bg-bg-surface"
+        >
           <img
             src="/images/james-purdy.webp"
             alt="James Purdy"
@@ -24,11 +56,17 @@ export function About() {
 
         {/* Content */}
         <div className="flex flex-col justify-center">
-          <h2 className="font-display text-display font-bold leading-tight">
+          <h2
+            data-animate
+            className="font-display text-display font-bold leading-tight"
+          >
             A motion designer who builds things that move and things that think.
           </h2>
 
-          <div className="prose-width mt-8 space-y-5 text-body text-text-secondary">
+          <div
+            data-animate
+            className="prose-width mt-8 space-y-5 text-body text-text-secondary"
+          >
             <p>
               I've spent the last decade making things move for brands,
               agencies, and studios (Google, IBM, VICE, D&AD, among others).
@@ -42,7 +80,7 @@ export function About() {
           </div>
 
           {/* Skills */}
-          <div className="mt-10 space-y-4">
+          <div data-animate className="mt-10 space-y-4">
             {skillCategories.map((cat) => (
               <div key={cat.label}>
                 <span className="font-mono text-mono uppercase tracking-wider text-text-secondary">
@@ -63,7 +101,7 @@ export function About() {
           </div>
 
           {/* Resume download */}
-          <div className="mt-10">
+          <div data-animate className="mt-10">
             <a
               href="/james-purdy-resume.pdf"
               download
