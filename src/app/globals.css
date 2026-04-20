@@ -1,26 +1,118 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ---------- Font Faces ---------- */
+/* Fallback stack: PP Neue Montreal (display) + Satoshi (body) + Geist Mono (mono) */
+/* If Söhne is licensed, swap these @font-face blocks for Söhne/Söhne Breit/Söhne Mono */
+
+@font-face {
+  font-family: "Display";
+  src: url("../styles/fonts/PPNeueMontreal-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: optional;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+@font-face {
+  font-family: "Display";
+  src: url("../styles/fonts/PPNeueMontreal-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: optional;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@font-face {
+  font-family: "Body";
+  src: url("../styles/fonts/Satoshi-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Body";
+  src: url("../styles/fonts/Satoshi-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Mono";
+  src: url("../styles/fonts/GeistMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ---------- Tailwind v4 Theme Tokens ---------- */
+
+@theme {
+  /* Typography */
+  --font-display: "Display", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Body", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Mono", ui-monospace, monospace;
+
+  /* Fluid type scale — use clamp() for seamless scaling */
+  --text-display-xl: clamp(2.25rem, 1.5rem + 4vw, 6rem);
+  --text-display: clamp(1.75rem, 1rem + 3vw, 4rem);
+  --text-heading: clamp(1.25rem, 1rem + 1vw, 2rem);
+  --text-body: clamp(1rem, 0.9rem + 0.25vw, 1.25rem);
+  --text-small: 0.875rem;
+  --text-mono: clamp(0.75rem, 0.7rem + 0.15vw, 0.875rem);
+
+  /* Base colors */
+  --color-bg-base: #F2EDE8;
+  --color-bg-surface: #EAE4DE;
+  --color-bg-surface-raised: #E2DCD6;
+  --color-text-primary: #1A1A1A;
+  --color-text-secondary: #6B6560;
+
+  /* Accent colors */
+  --color-accent-orange: #FF5F1F;
+  --color-accent-purple: #8B5CF6;
+  --color-accent-green: #22C55E;
+  --color-accent-pink: #EC4899;
+  --color-accent-blue: #3B82F6;
+
+  /* Shape */
+  --radius-card: 1.25rem;
+  --radius-cell: 0.5rem;
+
+  /* Easing */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-spring: cubic-bezier(0.22, 1.36, 0.36, 1);
+
+  /* Timing */
+  --duration-fast: 200ms;
+  --duration-normal: 400ms;
+  --duration-slow: 800ms;
+}
+
+/* ---------- Base Styles ---------- */
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Reduced motion: disable all transitions and animations */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Max line length for readability */
+.prose-width {
+  max-width: 65ch;
 }
