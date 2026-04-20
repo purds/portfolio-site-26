@@ -3,13 +3,24 @@
 import { useCallback } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { StatusBar } from "@/components/layout/StatusBar";
+import { Hero } from "@/components/sections/Hero";
 import { Hello } from "@/components/sections/Hello";
 import { Work } from "@/components/sections/Work";
+import { About } from "@/components/sections/About";
+import { Contact } from "@/components/sections/Contact";
 import { useActiveSection } from "@/lib/use-active-section";
 import { useIsDesktop } from "@/lib/use-is-desktop";
 import { sections } from "@/data/sections";
 
 const sectionIds = sections.map((s) => s.id);
+
+const sectionComponents: Record<string, React.ComponentType> = {
+  hero: Hero,
+  hello: Hello,
+  work: Work,
+  about: About,
+  contact: Contact,
+};
 
 export default function Home() {
   const activeSection = useActiveSection(sectionIds);
@@ -28,34 +39,18 @@ export default function Home() {
       <StatusBar activeSection={activeSection} />
 
       <main className="lg:pl-20">
-        {sections.map((section) => (
-          <section
-            key={section.id}
-            id={section.id}
-            className="flex min-h-screen items-center justify-center"
-          >
-            {section.id === "hello" ? (
-              <Hello />
-            ) : section.id === "work" ? (
-              <Work />
-            ) : (
-              <div className="px-6 py-20 lg:px-16">
-                <span
-                  className="font-mono text-mono"
-                  style={{ color: section.accent }}
-                >
-                  ({section.number})
-                </span>
-                <h2 className="mt-2 font-display text-display font-bold">
-                  {section.label}
-                </h2>
-                <p className="mt-4 text-text-secondary">
-                  Section content goes here
-                </p>
-              </div>
-            )}
-          </section>
-        ))}
+        {sections.map((section) => {
+          const Component = sectionComponents[section.id];
+          return (
+            <section
+              key={section.id}
+              id={section.id}
+              className="flex min-h-screen items-center justify-center"
+            >
+              {Component ? <Component /> : null}
+            </section>
+          );
+        })}
       </main>
     </>
   );
