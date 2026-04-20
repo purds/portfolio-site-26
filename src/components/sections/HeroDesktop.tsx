@@ -106,6 +106,7 @@ export function HeroDesktop() {
         style={{ touchAction: "none" }}
       />
       <div className="relative z-10 px-16">
+        <h1 className="sr-only">PURDYGOOD</h1>
         <p className="mt-6 text-body text-text-secondary prose-width">
           Motion designer who thinks in systems and moves in stories.
         </p>

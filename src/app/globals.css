@@ -124,9 +124,7 @@ body {
   max-width: 65ch;
 }
 
-/* Hide default cursor on desktop — replaced by CustomCursor */
-@media (min-width: 1024px) {
-  * {
-    cursor: none !important;
-  }
+/* Hide default cursor on desktop — only when CustomCursor JS mounts */
+.custom-cursor-active * {
+  cursor: none !important;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useMemo } from "react";
 import { getMagneticOffset, type MagneticConfig } from "@/lib/magnetic";
 import { useMouse } from "@/lib/use-mouse";
 
@@ -23,7 +23,10 @@ export function MagneticTarget({
 }: MagneticTargetProps) {
   const ref = useRef<HTMLDivElement>(null);
   const mouse = useMouse();
-  const config = { ...defaultConfig, ...configOverrides };
+  const config = useMemo(
+    () => ({ ...defaultConfig, ...configOverrides }),
+    [configOverrides?.strength, configOverrides?.radius, configOverrides?.tiltDeg]
+  );
 
   useEffect(() => {
     const el = ref.current;

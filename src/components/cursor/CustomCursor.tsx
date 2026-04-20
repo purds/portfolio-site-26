@@ -19,6 +19,9 @@ export function CustomCursor() {
     const cursor = cursorRef.current;
     if (!cursor) return;
 
+    // Toggle cursor:none on body when custom cursor is active
+    document.documentElement.classList.add("custom-cursor-active");
+
     let raf: number;
     const pos = { x: 0, y: 0 };
 
@@ -32,7 +35,10 @@ export function CustomCursor() {
     }
 
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      document.documentElement.classList.remove("custom-cursor-active");
+    };
   }, [mouse]);
 
   // Update cursor accent color
