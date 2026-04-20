@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import type { Project } from "@/data/projects";
@@ -19,20 +19,33 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
   const [expanded, setExpanded] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLElement>(null);
-  const isDesktop = useIsDesktop();
   const particlesRef = useParticles();
+  const isAnimatingRef = useRef(false);
+  const animationRef = useRef<gsap.core.Tween | null>(null);
 
+  const isDesktop = useIsDesktop();
   const { contextSafe } = useGSAP({ scope: cardRef });
+  const panelId = `project-panel-${project.id}`;
+
+  useEffect(() => {
+    return () => {
+      animationRef.current?.kill();
+      animationRef.current = null;
+      isAnimatingRef.current = false;
+    };
+  }, []);
 
   const toggleExpand = contextSafe(() => {
     const content = contentRef.current;
     if (!content) return;
+    if (isAnimatingRef.current) return;
 
     if (!expanded) {
       // Expand: set to auto height with GSAP
+      isAnimatingRef.current = true;
       gsap.set(content, { display: "block", height: "auto" });
       const fullHeight = content.offsetHeight;
-      gsap.fromTo(
+      animationRef.current = gsap.fromTo(
         content,
         { height: 0, opacity: 0 },
         {
@@ -40,7 +53,15 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
           opacity: 1,
           duration: 0.5,
           ease: "expo.out",
-          onComplete: () => gsap.set(content, { height: "auto" }),
+          onComplete: () => {
+            gsap.set(content, { height: "auto" });
+            animationRef.current = null;
+            isAnimatingRef.current = false;
+          },
+          onInterrupt: () => {
+            animationRef.current = null;
+            isAnimatingRef.current = false;
+          },
         }
       );
       setExpanded(true);
@@ -70,7 +91,8 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
       }
     } else {
       // Contract
-      gsap.to(content, {
+      isAnimatingRef.current = true;
+      animationRef.current = gsap.to(content, {
         height: 0,
         opacity: 0,
         duration: 0.4,
@@ -78,6 +100,12 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
         onComplete: () => {
           gsap.set(content, { display: "none" });
           setExpanded(false);
+          animationRef.current = null;
+          isAnimatingRef.current = false;
+        },
+        onInterrupt: () => {
+          animationRef.current = null;
+          isAnimatingRef.current = false;
         },
       });
     }
@@ -89,6 +117,7 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
         onClick={toggleExpand}
         className="flex w-full items-center justify-between px-6 py-4 text-left"
         aria-expanded={expanded}
+        aria-controls={panelId}
       >
         <div>
           <h3 className="font-display text-heading font-bold">
@@ -154,7 +183,7 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
             ))}
           </div>
           {project.video && (
-            <div className="aspect-video overflow-hidden rounded-radius-cell bg-bg-surface-raised">
+            <div className="aspect-video overflow-hidden rounded-[0.5rem] bg-bg-surface-raised">
               <video
                 src={project.video}
                 controls
@@ -169,9 +198,7 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
   );
 
   return isDesktop ? (
-    <MagneticTarget config={{ strength: 0.15, radius: 250, tiltDeg: 5 }}>
-      {card}
-    </MagneticTarget>
+    <MagneticTarget config={{ strength: 0.15, radius: 250, tiltDeg: 5 }}>{card}</MagneticTarget>
   ) : (
     card
   );

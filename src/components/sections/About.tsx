@@ -4,6 +4,7 @@ import { useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
+import { assetPath } from "@/lib/base-path";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
@@ -23,7 +24,8 @@ export function About() {
 
   useGSAP(
     () => {
-      gsap.from("[data-animate]", {
+      const selector = gsap.utils.selector(containerRef);
+      gsap.from(selector("[data-animate]"), {
         y: 40,
         opacity: 0,
         duration: 0.8,
@@ -48,8 +50,10 @@ export function About() {
           className="relative aspect-[4/5] overflow-hidden rounded-card bg-bg-surface"
         >
           <img
-            src="/images/james-purdy.webp"
+            src={assetPath("/images/james-purdy.webp")}
             alt="James Purdy"
+            width={800}
+            height={1000}
             className="h-full w-full object-cover"
           />
         </div>
@@ -103,7 +107,7 @@ export function About() {
           {/* Resume download */}
           <div data-animate className="mt-10">
             <a
-              href="/james-purdy-resume.pdf"
+              href={assetPath("/james-purdy-resume.pdf")}
               download
               className="inline-flex items-center gap-2 rounded-full bg-text-primary px-6 py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-80"
             >

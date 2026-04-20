@@ -13,6 +13,7 @@ interface SidebarProps {
 export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
   const particlesRef = useParticles();
   const prevSection = useRef(activeSection);
+  const timeoutIdsRef = useRef<number[]>([]);
 
   useEffect(() => {
     if (prevSection.current === activeSection) return;
@@ -28,10 +29,13 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
     const endY = window.innerHeight / 2 - (sections.length * tileGap) / 2 + nextIndex * tileGap;
 
     const steps = 8;
+    timeoutIdsRef.current.forEach(clearTimeout);
+    timeoutIdsRef.current = [];
+
     for (let i = 0; i < steps; i++) {
       const t = i / steps;
       const y = startY + (endY - startY) * t;
-      setTimeout(() => {
+      const timeoutId = window.setTimeout(() => {
         particlesRef.current?.emit(sidebarX, y, 2, {
           color: prevAccent,
           speed: 1,
@@ -40,9 +44,14 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
           spread: 0.5,
         });
       }, i * 50);
+      timeoutIdsRef.current.push(timeoutId);
     }
 
     prevSection.current = activeSection;
+    return () => {
+      timeoutIdsRef.current.forEach(clearTimeout);
+      timeoutIdsRef.current = [];
+    };
   }, [activeSection, particlesRef]);
 
   return (
@@ -62,7 +71,7 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
               onClick={() => onNavigate(section.id)}
               aria-label={`Go to ${section.label}`}
               aria-current={isActive ? "true" : undefined}
-              className="group relative flex h-12 w-12 items-center justify-center rounded-radius-cell transition-transform"
+              className="group relative flex h-12 w-12 items-center justify-center rounded-[0.5rem] transition-transform"
               style={{
                 backgroundColor: isActive ? section.accent : "transparent",
                 border: isActive

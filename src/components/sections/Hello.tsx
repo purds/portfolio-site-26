@@ -16,7 +16,8 @@ export function Hello() {
 
   useGSAP(
     () => {
-      gsap.from("[data-animate]", {
+      const selector = gsap.utils.selector(containerRef);
+      gsap.from(selector("[data-animate]"), {
         y: 40,
         opacity: 0,
         duration: 0.8,

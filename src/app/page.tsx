@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { StatusBar } from "@/components/layout/StatusBar";
@@ -33,22 +33,29 @@ export default function Home() {
   const isDesktop = useIsDesktop();
   const reducedMotion = useReducedMotion();
   const particlesRef = useRef<ParticleCanvasHandle>(null);
+  const [mounted, setMounted] = useState(false);
 
   const handleNavigate = useCallback((sectionId: string) => {
     const el = document.getElementById(sectionId);
     el?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <>
-      {isDesktop && !reducedMotion && <CustomCursor />}
-      {isDesktop ? (
-        <Sidebar activeSection={activeSection} onNavigate={handleNavigate} />
-      ) : (
-        <MobileNav activeSection={activeSection} onNavigate={handleNavigate} />
-      )}
+      {mounted && isDesktop && !reducedMotion && <CustomCursor />}
+      {mounted ? (
+        isDesktop ? (
+          <Sidebar activeSection={activeSection} onNavigate={handleNavigate} />
+        ) : (
+          <MobileNav activeSection={activeSection} onNavigate={handleNavigate} />
+        )
+      ) : null}
       <StatusBar activeSection={activeSection} />
-      {isDesktop && !reducedMotion && <ParticleCanvas ref={particlesRef} />}
+      {mounted && isDesktop && !reducedMotion && <ParticleCanvas ref={particlesRef} />}
 
       <ParticleContext.Provider value={particlesRef}>
       <main className="pt-14 lg:pl-20 lg:pt-0">

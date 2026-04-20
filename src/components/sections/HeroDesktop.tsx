@@ -3,6 +3,7 @@
 import { useRef, useEffect } from "react";
 import { GridCanvas } from "@/lib/grid-canvas";
 import { useMouse } from "@/lib/use-mouse";
+import { assetPath } from "@/lib/base-path";
 
 export function HeroDesktop() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -18,7 +19,7 @@ export function HeroDesktop() {
 
     // Load hidden image
     const img = new Image();
-    img.src = "/images/hidden-layer.webp";
+    img.src = assetPath("/images/hidden-layer.webp");
     img.onload = () => grid.setHiddenImage(img);
 
     // Initialize grid-integrated title

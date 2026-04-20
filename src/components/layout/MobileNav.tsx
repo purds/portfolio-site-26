@@ -22,7 +22,7 @@ export function MobileNav({ activeSection, onNavigate }: MobileNavProps) {
             onClick={() => onNavigate(section.id)}
             aria-label={`Go to ${section.label}`}
             aria-current={isActive ? "true" : undefined}
-            className="flex h-9 w-9 items-center justify-center rounded-radius-cell"
+            className="flex h-9 w-9 items-center justify-center rounded-[0.5rem]"
             style={{
               backgroundColor: isActive ? section.accent : "transparent",
               border: isActive ? "none" : `1.5px solid ${section.accent}40`,
