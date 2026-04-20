@@ -21,6 +21,9 @@ export function HeroDesktop() {
     img.src = "/images/hidden-layer.webp";
     img.onload = () => grid.setHiddenImage(img);
 
+    // Initialize grid-integrated title
+    grid.initTitle("PURDYGOOD");
+
     grid.start();
 
     // Track mouse over canvas
@@ -37,15 +40,50 @@ export function HeroDesktop() {
         localY <= rect.height
       ) {
         grid.activateAt(localX, localY, mouse.current.velocity);
+        grid.setMousePosition(localX, localY);
       }
 
       raf = requestAnimationFrame(trackMouse);
     }
     raf = requestAnimationFrame(trackMouse);
 
+    // Selection event handlers
+    let isDragging = false;
+
+    function onMouseDown(e: MouseEvent) {
+      const rect = canvas!.getBoundingClientRect();
+      isDragging = true;
+      grid.startSelection(e.clientX - rect.left, e.clientY - rect.top);
+    }
+
+    function onMouseMoveSelection(e: MouseEvent) {
+      if (isDragging) {
+        const rect = canvas!.getBoundingClientRect();
+        grid.updateSelection(e.clientX - rect.left, e.clientY - rect.top);
+      }
+    }
+
+    function onMouseUp() {
+      if (isDragging) {
+        isDragging = false;
+        grid.endSelection();
+      }
+    }
+
+    function onClick(e: MouseEvent) {
+      const rect = canvas!.getBoundingClientRect();
+      grid.clickSelection(e.clientX - rect.left, e.clientY - rect.top);
+    }
+
+    canvas.addEventListener("mousedown", onMouseDown);
+    canvas.addEventListener("mousemove", onMouseMoveSelection);
+    canvas.addEventListener("mouseup", onMouseUp);
+    canvas.addEventListener("click", onClick);
+
     // Handle resize
     function onResize() {
       grid.resize();
+      grid.initTitle("PURDYGOOD");
     }
     window.addEventListener("resize", onResize);
 
@@ -53,6 +91,10 @@ export function HeroDesktop() {
       cancelAnimationFrame(raf);
       grid.destroy();
       window.removeEventListener("resize", onResize);
+      canvas.removeEventListener("mousedown", onMouseDown);
+      canvas.removeEventListener("mousemove", onMouseMoveSelection);
+      canvas.removeEventListener("mouseup", onMouseUp);
+      canvas.removeEventListener("click", onClick);
     };
   }, [mouse]);
 
@@ -64,9 +106,6 @@ export function HeroDesktop() {
         style={{ touchAction: "none" }}
       />
       <div className="relative z-10 px-16">
-        <h1 className="font-display text-display-xl font-bold leading-none tracking-tight">
-          PURDYGOOD
-        </h1>
         <p className="mt-6 text-body text-text-secondary prose-width">
           Motion designer who thinks in systems and moves in stories.
         </p>
