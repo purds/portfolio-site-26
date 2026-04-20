@@ -11,6 +11,7 @@ import { Contact } from "@/components/sections/Contact";
 import { useActiveSection } from "@/lib/use-active-section";
 import { useIsDesktop } from "@/lib/use-is-desktop";
 import { sections } from "@/data/sections";
+import { CustomCursor } from "@/components/cursor/CustomCursor";
 
 const sectionIds = sections.map((s) => s.id);
 
@@ -33,6 +34,7 @@ export default function Home() {
 
   return (
     <>
+      {isDesktop && <CustomCursor />}
       {isDesktop && (
         <Sidebar activeSection={activeSection} onNavigate={handleNavigate} />
       )}

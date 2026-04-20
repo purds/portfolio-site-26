@@ -1,6 +1,7 @@
 "use client";
 
 import { sections } from "@/data/sections";
+import { MagneticTarget } from "@/components/cursor/MagneticTarget";
 
 interface SidebarProps {
   activeSection: string;
@@ -17,28 +18,32 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
         const isActive = activeSection === section.id;
 
         return (
-          <button
+          <MagneticTarget
             key={section.id}
-            onClick={() => onNavigate(section.id)}
-            aria-label={`Go to ${section.label}`}
-            aria-current={isActive ? "true" : undefined}
-            className="group relative flex h-12 w-12 items-center justify-center rounded-radius-cell transition-transform"
-            style={{
-              backgroundColor: isActive ? section.accent : "transparent",
-              border: isActive
-                ? "none"
-                : `1.5px solid ${section.accent}40`,
-            }}
+            config={{ strength: 0.4, radius: 100, tiltDeg: 0 }}
           >
-            <span
-              className="font-mono text-xs font-medium transition-colors"
+            <button
+              onClick={() => onNavigate(section.id)}
+              aria-label={`Go to ${section.label}`}
+              aria-current={isActive ? "true" : undefined}
+              className="group relative flex h-12 w-12 items-center justify-center rounded-radius-cell transition-transform"
               style={{
-                color: isActive ? "#fff" : section.accent,
+                backgroundColor: isActive ? section.accent : "transparent",
+                border: isActive
+                  ? "none"
+                  : `1.5px solid ${section.accent}40`,
               }}
             >
-              {section.number}
-            </span>
-          </button>
+              <span
+                className="font-mono text-xs font-medium transition-colors"
+                style={{
+                  color: isActive ? "#fff" : section.accent,
+                }}
+              >
+                {section.number}
+              </span>
+            </button>
+          </MagneticTarget>
         );
       })}
     </nav>

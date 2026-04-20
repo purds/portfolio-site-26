@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import type { Project } from "@/data/projects";
+import { MagneticTarget } from "@/components/cursor/MagneticTarget";
+import { useIsDesktop } from "@/lib/use-is-desktop";
 
 gsap.registerPlugin(useGSAP);
 
@@ -16,6 +18,7 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
   const [expanded, setExpanded] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLElement>(null);
+  const isDesktop = useIsDesktop();
 
   const { contextSafe } = useGSAP({ scope: cardRef });
 
@@ -54,7 +57,7 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
     }
   });
 
-  return (
+  const card = (
     <article ref={cardRef} className="overflow-hidden rounded-card bg-bg-surface">
       <button
         onClick={toggleExpand}
@@ -137,5 +140,13 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
         </div>
       </div>
     </article>
+  );
+
+  return isDesktop ? (
+    <MagneticTarget config={{ strength: 0.15, radius: 250, tiltDeg: 5 }}>
+      {card}
+    </MagneticTarget>
+  ) : (
+    card
   );
 }
