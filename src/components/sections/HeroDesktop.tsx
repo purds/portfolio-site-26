@@ -72,7 +72,6 @@ export function HeroDesktop() {
 
       if (inside) {
         grid.activateAt(localX, localY, mouse.current.velocity);
-        grid.setMousePosition(localX, localY);
       }
 
       const heroRect = heroContainer!.getBoundingClientRect();

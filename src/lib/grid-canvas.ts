@@ -118,8 +118,6 @@ export class GridCanvas {
   private bucketCount: Int32Array = new Int32Array(OPACITY_BUCKETS);
   private bucketCapacity = 0;
 
-  private _mouseLocal: { x: number; y: number } | null = null;
-
   // Idle breathing state (cursor-rest pulse, unrelated to block breathing).
   private lastMouseMoveTime = 0;
   private lastMouseCol = -1;
@@ -334,10 +332,6 @@ export class GridCanvas {
 
   setTitleInputs(inputs: TitleInputs): void {
     this.titleInputs = inputs;
-  }
-
-  setMousePosition(x: number, y: number) {
-    this._mouseLocal = { x, y };
   }
 
   start() {
