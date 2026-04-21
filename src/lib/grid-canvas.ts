@@ -20,6 +20,9 @@ export const defaultGridConfig: GridConfig = {
   velocityThreshold: 600,
 };
 
+const SOLID_DURATION_MS = 5000;
+const FADE_DURATION_MS = 5000;
+
 interface Cell {
   col: number;
   row: number;
@@ -56,6 +59,16 @@ export class GridCanvas {
     turbulenceAngle: number; // slowly drifting angle for flow-field wander
     age: number;          // frames since spawn
   }[] = [];
+
+  // Committed solid box: lives SOLID_DURATION_MS at full opacity, then fades
+  // over FADE_DURATION_MS. Clicking inside its bounds triggers disintegration.
+  private solidBox: {
+    minCol: number;
+    maxCol: number;
+    minRow: number;
+    maxRow: number;
+    createdAt: number;
+  } | null = null;
 
   // Letter cell state
   private letterCells: Map<string, TitleCell> = new Map();
@@ -161,33 +174,58 @@ export class GridCanvas {
     };
   }
 
-  endSelection() {
+  endSelection(commit: boolean) {
     this.selecting = false;
+    if (!this.selectionStart || !this.selectionEnd) return;
+
+    if (commit) {
+      const minCol = Math.min(this.selectionStart.col, this.selectionEnd.col);
+      const maxCol = Math.max(this.selectionStart.col, this.selectionEnd.col);
+      const minRow = Math.min(this.selectionStart.row, this.selectionEnd.row);
+      const maxRow = Math.max(this.selectionStart.row, this.selectionEnd.row);
+
+      if (maxCol > minCol || maxRow > minRow) {
+        this.solidBox = {
+          minCol,
+          maxCol,
+          minRow,
+          maxRow,
+          createdAt: performance.now(),
+        };
+      }
+    }
+
+    this.selectionStart = null;
+    this.selectionEnd = null;
   }
 
   clickSelection(mouseX: number, mouseY: number) {
-    if (!this.selectionStart || !this.selectionEnd) return false;
+    if (!this.solidBox) return false;
 
     const step = this.config.cellSize + this.config.gap;
     const col = Math.floor(mouseX / step);
     const row = Math.floor(mouseY / step);
 
-    const minCol = Math.min(this.selectionStart.col, this.selectionEnd.col);
-    const maxCol = Math.max(this.selectionStart.col, this.selectionEnd.col);
-    const minRow = Math.min(this.selectionStart.row, this.selectionEnd.row);
-    const maxRow = Math.max(this.selectionStart.row, this.selectionEnd.row);
-
+    const { minCol, maxCol, minRow, maxRow } = this.solidBox;
     if (col < minCol || col > maxCol || row < minRow || row > maxRow) {
-      this.selectionStart = null;
-      this.selectionEnd = null;
       return false;
     }
 
-    // Trigger disintegration — staggered ripple from center
+    this.spawnDisintegration(minCol, maxCol, minRow, maxRow);
+    this.solidBox = null;
+    return true;
+  }
+
+  private spawnDisintegration(
+    minCol: number,
+    maxCol: number,
+    minRow: number,
+    maxRow: number,
+  ) {
+    // Staggered ripple from center
     const centerCol = (minCol + maxCol) / 2;
     const centerRow = (minRow + maxRow) / 2;
 
-    // Find max distance for normalizing delay
     let maxDist = 0;
     for (let r = minRow; r <= maxRow; r++) {
       for (let c = minCol; c <= maxCol; c++) {
@@ -204,7 +242,6 @@ export class GridCanvas {
         let dy = r - centerRow;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        // Single-cell selection: give random outward direction
         if (dist === 0) {
           const angle = Math.random() * Math.PI * 2;
           dx = Math.cos(angle);
@@ -214,7 +251,6 @@ export class GridCanvas {
           dy /= dist;
         }
 
-        // Stagger onset: inner cells dissolve first, outer cells wait
         const normalizedDist = maxDist > 0 ? dist / maxDist : 0;
         const delay = Math.floor(normalizedDist * 18 + Math.random() * 6);
 
@@ -223,12 +259,12 @@ export class GridCanvas {
           row: r,
           x: cell.x,
           y: cell.y,
-          vx: dx * (0.8 + Math.random() * 1.2),   // much slower — fluid, not explosive
+          vx: dx * (0.8 + Math.random() * 1.2),
           vy: dy * (0.8 + Math.random() * 1.2),
           opacity: 1,
           delay,
-          phase: Math.random() * Math.PI * 2,       // random shimmer phase
-          turbulenceAngle: Math.random() * Math.PI * 2, // initial wander direction
+          phase: Math.random() * Math.PI * 2,
+          turbulenceAngle: Math.random() * Math.PI * 2,
           age: 0,
         });
 
@@ -236,10 +272,6 @@ export class GridCanvas {
         cell.activatedAt = performance.now();
       }
     }
-
-    this.selectionStart = null;
-    this.selectionEnd = null;
-    return true;
   }
 
   // Title methods — accepts a single string or array of lines
@@ -386,7 +418,7 @@ export class GridCanvas {
       }
     }
 
-    // Draw selection box
+    // Draw active-drag selection preview (dashed outline)
     if (this.selectionStart && this.selectionEnd) {
       const step = this.config.cellSize + this.config.gap;
       const minCol = Math.min(this.selectionStart.col, this.selectionEnd.col);
@@ -404,6 +436,35 @@ export class GridCanvas {
         (maxRow - minRow + 1) * step + 2
       );
       ctx.setLineDash([]);
+    }
+
+    // Draw committed solid box — full opacity for SOLID_DURATION_MS, then
+    // linear fade over FADE_DURATION_MS, then auto-expire.
+    if (this.solidBox) {
+      const elapsed = now - this.solidBox.createdAt;
+      if (elapsed >= SOLID_DURATION_MS + FADE_DURATION_MS) {
+        this.solidBox = null;
+      } else {
+        const alpha =
+          elapsed <= SOLID_DURATION_MS
+            ? 1
+            : 1 - (elapsed - SOLID_DURATION_MS) / FADE_DURATION_MS;
+
+        const { minCol, maxCol, minRow, maxRow } = this.solidBox;
+        ctx.fillStyle = "#FF5F1F";
+        ctx.globalAlpha = alpha;
+        for (let r = minRow; r <= maxRow; r++) {
+          if (r < 0 || r >= this.rows) continue;
+          for (let c = minCol; c <= maxCol; c++) {
+            if (c < 0 || c >= this.cols) continue;
+            const cell = this.cells[r][c];
+            ctx.beginPath();
+            ctx.roundRect(cell.x, cell.y, cellSize, cellSize, cornerRadius);
+            ctx.fill();
+          }
+        }
+        ctx.globalAlpha = 1;
+      }
     }
 
     // Draw and update disintegrating cells — grid-snapped fluid dissolve

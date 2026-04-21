@@ -49,29 +49,51 @@ export function HeroDesktop() {
     raf = requestAnimationFrame(trackMouse);
 
     // Selection event handlers
+    const DRAG_THRESHOLD_PX = 4;
     let isDragging = false;
+    let dragStart: { x: number; y: number } | null = null;
+    let dragCurrent: { x: number; y: number } | null = null;
+    let suppressNextClick = false;
 
     function onMouseDown(e: MouseEvent) {
       const rect = canvas!.getBoundingClientRect();
+      const localX = e.clientX - rect.left;
+      const localY = e.clientY - rect.top;
       isDragging = true;
-      grid.startSelection(e.clientX - rect.left, e.clientY - rect.top);
+      dragStart = { x: localX, y: localY };
+      dragCurrent = { x: localX, y: localY };
+      grid.startSelection(localX, localY);
     }
 
     function onMouseMoveSelection(e: MouseEvent) {
       if (isDragging) {
         const rect = canvas!.getBoundingClientRect();
-        grid.updateSelection(e.clientX - rect.left, e.clientY - rect.top);
+        const localX = e.clientX - rect.left;
+        const localY = e.clientY - rect.top;
+        dragCurrent = { x: localX, y: localY };
+        grid.updateSelection(localX, localY);
       }
     }
 
     function onMouseUp() {
-      if (isDragging) {
-        isDragging = false;
-        grid.endSelection();
-      }
+      if (!isDragging) return;
+      const didDrag =
+        dragStart !== null &&
+        dragCurrent !== null &&
+        (Math.abs(dragCurrent.x - dragStart.x) > DRAG_THRESHOLD_PX ||
+          Math.abs(dragCurrent.y - dragStart.y) > DRAG_THRESHOLD_PX);
+      isDragging = false;
+      dragStart = null;
+      dragCurrent = null;
+      grid.endSelection(didDrag);
+      if (didDrag) suppressNextClick = true;
     }
 
     function onClick(e: MouseEvent) {
+      if (suppressNextClick) {
+        suppressNextClick = false;
+        return;
+      }
       const rect = canvas!.getBoundingClientRect();
       grid.clickSelection(e.clientX - rect.left, e.clientY - rect.top);
     }
