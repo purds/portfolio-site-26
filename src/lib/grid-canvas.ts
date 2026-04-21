@@ -1,4 +1,4 @@
-import { getLetterCells, getDirectionalAscii, type TitleCell } from "./grid-title";
+import { Title3D } from "./grid-title-3d";
 
 export interface GridConfig {
   cellSize: number;
@@ -11,8 +11,8 @@ export interface GridConfig {
 }
 
 export const defaultGridConfig: GridConfig = {
-  cellSize: 28,
-  gap: 3,
+  cellSize: 20,
+  gap: 2,
   cornerRadius: 6,
   fadeTime: 1800,
   trailWidth: 2,
@@ -20,8 +20,36 @@ export const defaultGridConfig: GridConfig = {
   velocityThreshold: 600,
 };
 
+export interface TitleInputs {
+  mouseX: number | null;
+  mouseY: number | null;
+  scrollProgress: number;
+  introYaw: number;
+}
+
 const SOLID_DURATION_MS = 5000;
 const FADE_DURATION_MS = 5000;
+
+// Rest rotation offsets (radians).
+const REST_YAW = (15 * Math.PI) / 180;
+const REST_PITCH = (8 * Math.PI) / 180;
+
+// Mouse pitch mapping range (radians).
+const MOUSE_PITCH_RANGE = (15 * Math.PI) / 180;
+
+// Scroll drives pitch from rest to full flip (180°) over the hero's scroll range.
+const SCROLL_PITCH_RANGE = Math.PI;
+
+// Breathing amplitudes (radians) and period (ms).
+const BREATH_YAW_AMP = (2 * Math.PI) / 180;
+const BREATH_PITCH_AMP = (1 * Math.PI) / 180;
+const BREATH_PERIOD_MS = 6000;
+
+// Spring stiffness for mouse-follow damping. Higher = tighter.
+const MOUSE_SPRING_STIFFNESS = 8;
+
+// Number of quantized opacity buckets for batched title rendering.
+const OPACITY_BUCKETS = 10;
 
 interface Cell {
   col: number;
@@ -41,6 +69,8 @@ export class GridCanvas {
   private rows = 0;
   private hiddenImage: HTMLImageElement | null = null;
   private raf = 0;
+  private running = false;
+  private reducedMotion = false;
 
   // Selection state
   private selecting = false;
@@ -54,14 +84,12 @@ export class GridCanvas {
     vx: number;
     vy: number;
     opacity: number;
-    delay: number;        // frames before this cell starts moving
-    phase: number;        // random phase for shimmer oscillation
-    turbulenceAngle: number; // slowly drifting angle for flow-field wander
-    age: number;          // frames since spawn
+    delay: number;
+    phase: number;
+    turbulenceAngle: number;
+    age: number;
   }[] = [];
 
-  // Committed solid box: lives SOLID_DURATION_MS at full opacity, then fades
-  // over FADE_DURATION_MS. Clicking inside its bounds triggers disintegration.
   private solidBox: {
     minCol: number;
     maxCol: number;
@@ -70,11 +98,29 @@ export class GridCanvas {
     createdAt: number;
   } | null = null;
 
-  // Letter cell state
-  private letterCells: Map<string, TitleCell> = new Map();
+  // 3D title state
+  private title3D: Title3D | null = null;
+  private titleInputs: TitleInputs = {
+    mouseX: null,
+    mouseY: null,
+    scrollProgress: 0,
+    introYaw: 0,
+  };
+  // Damped mouse-yaw state, tracked independently from raw input so we can
+  // spring-follow the target.
+  private dampedMouseYaw = 0;
+  private dampedMousePitch = 0;
+  private lastFrameTime = 0;
+
+  // Pre-allocated bucket arrays reused each frame to avoid allocation in draw().
+  private bucketColX: Float32Array[] = [];
+  private bucketColY: Float32Array[] = [];
+  private bucketCount: Int32Array = new Int32Array(OPACITY_BUCKETS);
+  private bucketCapacity = 0;
+
   private _mouseLocal: { x: number; y: number } | null = null;
 
-  // Idle breathing state
+  // Idle breathing state (cursor-rest pulse, unrelated to block breathing).
   private lastMouseMoveTime = 0;
   private lastMouseCol = -1;
   private lastMouseRow = -1;
@@ -86,15 +132,22 @@ export class GridCanvas {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d")!;
     this.config = { ...defaultGridConfig, ...config };
+    if (typeof window !== "undefined" && window.matchMedia) {
+      this.reducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+    }
+    this.ensureBucketCapacity(1024);
     this.resize();
   }
 
   resize() {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = this.canvas.clientWidth;
     const h = this.canvas.clientHeight;
     this.canvas.width = w * dpr;
     this.canvas.height = h * dpr;
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.scale(dpr, dpr);
 
     const { cellSize, gap } = this.config;
@@ -133,7 +186,6 @@ export class GridCanvas {
       velocity > velocityThreshold ? fastTrailWidth : trailWidth;
     const now = performance.now();
 
-    // Track idle state: update timestamp only when cursor moves to a new cell
     if (col !== this.lastMouseCol || row !== this.lastMouseRow) {
       this.lastMouseMoveTime = now;
       this.lastMouseCol = col;
@@ -145,7 +197,6 @@ export class GridCanvas {
         const r = row + dr;
         const c = col + dc;
         if (r < 0 || r >= this.rows || c < 0 || c >= this.cols) continue;
-        // Circle mask
         if (dc * dc + dr * dr > radius * radius) continue;
 
         this.cells[r][c].activation = 1;
@@ -154,7 +205,6 @@ export class GridCanvas {
     }
   }
 
-  // Selection methods
   startSelection(mouseX: number, mouseY: number) {
     const step = this.config.cellSize + this.config.gap;
     this.selectionStart = {
@@ -222,7 +272,6 @@ export class GridCanvas {
     minRow: number,
     maxRow: number,
   ) {
-    // Staggered ripple from center
     const centerCol = (minCol + maxCol) / 2;
     const centerRow = (minRow + maxRow) / 2;
 
@@ -274,42 +323,17 @@ export class GridCanvas {
     }
   }
 
-  // Title methods — accepts a single string or array of lines
+  // Backward-compat: accepts a single line or two lines. Two lines build a
+  // 3D block with lines[0] on the front face and lines[1] on the back.
   initTitle(lines: string | string[]) {
-    const charWidth = 5;
-    const desiredSpacing = 2;
-    const glyphHeight = 7;
-    const lineGap = 2; // rows between lines
-    const availableCols = this.cols - 2;
-
     const textLines = Array.isArray(lines) ? lines : [lines];
+    const frontText = textLines[0] ?? "";
+    const backText = textLines[1] ?? textLines[0] ?? "";
+    this.title3D = new Title3D({ frontText, backText });
+  }
 
-    // Total height of all lines stacked
-    const totalHeight = textLines.length * glyphHeight + (textLines.length - 1) * lineGap;
-    const baseRow = Math.floor(this.rows / 2) - Math.floor(totalHeight / 2);
-
-    this.letterCells.clear();
-
-    for (let i = 0; i < textLines.length; i++) {
-      const text = textLines[i];
-      const row = baseRow + i * (glyphHeight + lineGap);
-
-      // Dynamic spacing per line
-      let letterSpacing = desiredSpacing;
-      const totalWidthDesired = text.length * charWidth + (text.length - 1) * desiredSpacing;
-      if (totalWidthDesired > availableCols) {
-        const gapBudget = availableCols - text.length * charWidth;
-        letterSpacing = Math.max(0, Math.floor(gapBudget / Math.max(1, text.length - 1)));
-      }
-
-      const totalWidth = text.length * charWidth + (text.length - 1) * letterSpacing;
-      const startCol = Math.max(0, Math.floor((this.cols - totalWidth) / 2));
-
-      const cells = getLetterCells(text, startCol, row, letterSpacing);
-      for (const cell of cells) {
-        this.letterCells.set(`${cell.col},${cell.row}`, cell);
-      }
-    }
+  setTitleInputs(inputs: TitleInputs): void {
+    this.titleInputs = inputs;
   }
 
   setMousePosition(x: number, y: number) {
@@ -317,7 +341,11 @@ export class GridCanvas {
   }
 
   start() {
+    if (this.running) return;
+    this.running = true;
+    this.lastFrameTime = performance.now();
     const tick = () => {
+      if (!this.running) return;
       this.draw();
       this.raf = requestAnimationFrame(tick);
     };
@@ -325,11 +353,94 @@ export class GridCanvas {
   }
 
   stop() {
+    this.running = false;
     cancelAnimationFrame(this.raf);
   }
 
+  pauseLoop(): void {
+    if (!this.running) return;
+    this.running = false;
+    cancelAnimationFrame(this.raf);
+  }
+
+  resumeLoop(): void {
+    if (this.running) return;
+    this.lastFrameTime = performance.now();
+    this.start();
+  }
+
+  private ensureBucketCapacity(cellCount: number) {
+    if (cellCount <= this.bucketCapacity) return;
+    const cap = Math.max(cellCount, this.bucketCapacity * 2, 256);
+    this.bucketColX = [];
+    this.bucketColY = [];
+    for (let i = 0; i < OPACITY_BUCKETS; i++) {
+      this.bucketColX.push(new Float32Array(cap));
+      this.bucketColY.push(new Float32Array(cap));
+    }
+    this.bucketCapacity = cap;
+  }
+
+  // Compute the block's total (yaw, pitch) for this frame and apply it to
+  // the Title3D instance. Mouse input is spring-damped.
+  private updateTitleRotation(now: number) {
+    if (!this.title3D) return;
+
+    const dt = Math.max(0, Math.min(0.1, (now - this.lastFrameTime) / 1000));
+    this.lastFrameTime = now;
+
+    const {
+      mouseX,
+      mouseY,
+      scrollProgress,
+      introYaw,
+    } = this.titleInputs;
+
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight;
+
+    // Target mouse yaw/pitch from raw cursor position.
+    const targetMouseYaw =
+      mouseX === null || w === 0
+        ? 0
+        : -Math.PI + (mouseX / w) * 2 * Math.PI;
+    const targetMousePitch =
+      mouseY === null || h === 0
+        ? 0
+        : -MOUSE_PITCH_RANGE + (mouseY / h) * 2 * MOUSE_PITCH_RANGE;
+
+    if (this.reducedMotion) {
+      this.dampedMouseYaw = targetMouseYaw;
+      this.dampedMousePitch = targetMousePitch;
+    } else {
+      const springAlpha = 1 - Math.exp(-dt * MOUSE_SPRING_STIFFNESS);
+      this.dampedMouseYaw +=
+        (targetMouseYaw - this.dampedMouseYaw) * springAlpha;
+      this.dampedMousePitch +=
+        (targetMousePitch - this.dampedMousePitch) * springAlpha;
+    }
+
+    const scrollPitch = scrollProgress * SCROLL_PITCH_RANGE;
+
+    let breathYaw = 0;
+    let breathPitch = 0;
+    if (!this.reducedMotion) {
+      const t = (now * 2 * Math.PI) / BREATH_PERIOD_MS;
+      breathYaw = BREATH_YAW_AMP * Math.sin(t);
+      breathPitch = BREATH_PITCH_AMP * Math.sin(t + Math.PI / 2);
+    }
+
+    const yaw =
+      REST_YAW + introYaw + this.dampedMouseYaw + breathYaw;
+    const pitch =
+      REST_PITCH + this.dampedMousePitch + scrollPitch + breathPitch;
+
+    this.title3D.setRotation(yaw, pitch);
+  }
+
   private draw() {
-    const { cellSize, cornerRadius, fadeTime } = this.config;
+    const { cellSize, gap, cornerRadius, fadeTime } = this.config;
+    const step = cellSize + gap;
     const ctx = this.ctx;
     const w = this.canvas.clientWidth;
     const h = this.canvas.clientHeight;
@@ -337,65 +448,85 @@ export class GridCanvas {
 
     ctx.clearRect(0, 0, w, h);
 
+    // --- Compute title cell opacities (done before the cell sweep so we can
+    //     render the title in a single batched pass afterwards).
+    let titleCells: Map<string, number> | null = null;
+    if (this.title3D) {
+      this.updateTitleRotation(now);
+      const centerCol = Math.floor(this.cols / 2);
+      const centerRow = Math.floor(this.rows / 2);
+      titleCells = this.title3D.computeCellOpacities(centerCol, centerRow);
+    }
+
+    // --- Background grid: decay activation, draw dormant/activated cell fills
+    //     and the hidden-image reveal where activated.
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
         const cell = this.cells[r][c];
 
-        // Fade decay
         if (cell.activation > 0) {
           const elapsed = now - cell.activatedAt;
           cell.activation = Math.max(0, 1 - elapsed / fadeTime);
         }
 
-        // Draw cell
-        const key = `${cell.col},${cell.row}`;
-        const letterCell = this.letterCells.get(key);
+        const alpha = 0.02 + cell.activation * 0.6;
+        ctx.beginPath();
+        ctx.roundRect(cell.x, cell.y, cellSize, cellSize, cornerRadius);
 
-        if (letterCell) {
-          // Letter cell: slightly more visible at rest
-          const baseAlpha = 0.08;
-          const alpha = baseAlpha + cell.activation * 0.7;
-
-          ctx.beginPath();
-          ctx.roundRect(cell.x, cell.y, cellSize, cellSize, cornerRadius);
-          ctx.fillStyle = `rgba(26, 26, 26, ${alpha})`;
-          ctx.fill();
-
-          // Draw directional ASCII character when mouse position is known
-          if (this._mouseLocal) {
-            const ascii = getDirectionalAscii(
-              this._mouseLocal.x,
-              this._mouseLocal.y,
-              cell.x + cellSize / 2,
-              cell.y + cellSize / 2
-            );
-            ctx.fillStyle = `rgba(26, 26, 26, ${0.3 + cell.activation * 0.5})`;
-            ctx.font = `${cellSize * 0.6}px monospace`;
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText(ascii, cell.x + cellSize / 2, cell.y + cellSize / 2);
-          }
+        if (cell.activation > 0.01 && this.hiddenImage) {
+          ctx.save();
+          ctx.clip();
+          ctx.globalAlpha = cell.activation * 0.8;
+          ctx.drawImage(this.hiddenImage, 0, 0, w, h);
+          ctx.restore();
         } else {
-          // Non-letter cell: original rendering
-          const alpha = 0.02 + cell.activation * 0.6;
-          ctx.beginPath();
-          ctx.roundRect(cell.x, cell.y, cellSize, cellSize, cornerRadius);
-
-          if (cell.activation > 0.01 && this.hiddenImage) {
-            ctx.save();
-            ctx.clip();
-            ctx.globalAlpha = cell.activation * 0.8;
-            ctx.drawImage(this.hiddenImage, 0, 0, w, h);
-            ctx.restore();
-          } else {
-            ctx.fillStyle = `rgba(0, 0, 0, ${alpha * 0.04})`;
-            ctx.fill();
-          }
+          ctx.fillStyle = `rgba(0, 0, 0, ${alpha * 0.04})`;
+          ctx.fill();
         }
       }
     }
 
-    // Idle breathing: gentle pulse when cursor rests for 2.5s+
+    // --- 3D title: batch fills by opacity bucket.
+    if (titleCells && titleCells.size > 0) {
+      this.ensureBucketCapacity(titleCells.size);
+      const bc = this.bucketCount;
+      for (let i = 0; i < OPACITY_BUCKETS; i++) bc[i] = 0;
+
+      for (const [key, opacity] of titleCells) {
+        if (opacity < 0.01) continue;
+        const commaIdx = key.indexOf(",");
+        const col = +key.substring(0, commaIdx);
+        const row = +key.substring(commaIdx + 1);
+        if (col < 0 || col >= this.cols || row < 0 || row >= this.rows) continue;
+
+        // Bucket index 0..OPACITY_BUCKETS-1. Quantize to ceil so low opacities
+        // still render (e.g. 0.03 -> bucket 0 is reserved for near-zero skip).
+        let bucket = Math.ceil(opacity * OPACITY_BUCKETS) - 1;
+        if (bucket < 0) bucket = 0;
+        if (bucket >= OPACITY_BUCKETS) bucket = OPACITY_BUCKETS - 1;
+
+        const idx = bc[bucket];
+        this.bucketColX[bucket][idx] = col * step;
+        this.bucketColY[bucket][idx] = row * step;
+        bc[bucket] = idx + 1;
+      }
+
+      for (let b = 0; b < OPACITY_BUCKETS; b++) {
+        const n = bc[b];
+        if (n === 0) continue;
+        const bucketAlpha = (b + 1) / OPACITY_BUCKETS;
+        ctx.beginPath();
+        const xs = this.bucketColX[b];
+        const ys = this.bucketColY[b];
+        for (let i = 0; i < n; i++) {
+          ctx.roundRect(xs[i], ys[i], cellSize, cellSize, cornerRadius);
+        }
+        ctx.fillStyle = `rgba(255, 95, 31, ${bucketAlpha})`;
+        ctx.fill();
+      }
+    }
+
+    // --- Idle breathing pulse near the cursor (unchanged behavior).
     const idleTime = now - this.lastMouseMoveTime;
     if (idleTime > 2500 && this.lastMouseCol >= 0) {
       const breathRadius = 2;
@@ -407,8 +538,9 @@ export class GridCanvas {
           const dist = Math.sqrt(dc * dc + dr * dr);
           if (dist > breathRadius) continue;
           const falloff = 1 - dist / (breathRadius + 1);
-          const phase = bc * 0.5 + br * 0.7; // offset per cell
-          const breath = 0.04 + 0.06 * Math.sin(now * 0.003 + phase) * falloff;
+          const phase = bc * 0.5 + br * 0.7;
+          const breath =
+            0.04 + 0.06 * Math.sin(now * 0.003 + phase) * falloff;
           const cell = this.cells[br][bc];
           ctx.beginPath();
           ctx.roundRect(cell.x, cell.y, cellSize, cellSize, cornerRadius);
@@ -418,9 +550,8 @@ export class GridCanvas {
       }
     }
 
-    // Draw active-drag selection preview (dashed outline)
+    // --- Active-drag selection preview (dashed outline).
     if (this.selectionStart && this.selectionEnd) {
-      const step = this.config.cellSize + this.config.gap;
       const minCol = Math.min(this.selectionStart.col, this.selectionEnd.col);
       const maxCol = Math.max(this.selectionStart.col, this.selectionEnd.col);
       const minRow = Math.min(this.selectionStart.row, this.selectionEnd.row);
@@ -433,13 +564,12 @@ export class GridCanvas {
         minCol * step - 1,
         minRow * step - 1,
         (maxCol - minCol + 1) * step + 2,
-        (maxRow - minRow + 1) * step + 2
+        (maxRow - minRow + 1) * step + 2,
       );
       ctx.setLineDash([]);
     }
 
-    // Draw committed solid box — full opacity for SOLID_DURATION_MS, then
-    // linear fade over FADE_DURATION_MS, then auto-expire.
+    // --- Committed solid box.
     if (this.solidBox) {
       const elapsed = now - this.solidBox.createdAt;
       if (elapsed >= SOLID_DURATION_MS + FADE_DURATION_MS) {
@@ -467,15 +597,13 @@ export class GridCanvas {
       }
     }
 
-    // Draw and update disintegrating cells — grid-snapped fluid dissolve
-    const step = this.config.cellSize + this.config.gap;
+    // --- Disintegrating cells (unchanged).
     for (let i = this.disintegratingCells.length - 1; i >= 0; i--) {
       const dc = this.disintegratingCells[i];
 
-      // Staggered onset: cell stays put and shimmers until delay expires
       if (dc.age < dc.delay) {
-        // Pre-dissolve shimmer — cell pulses in place
-        const shimmer = 0.4 + 0.6 * Math.abs(Math.sin(dc.age * 0.3 + dc.phase));
+        const shimmer =
+          0.4 + 0.6 * Math.abs(Math.sin(dc.age * 0.3 + dc.phase));
         ctx.globalAlpha = shimmer * 0.6;
         ctx.fillStyle = "#FF5F1F";
         ctx.beginPath();
@@ -486,19 +614,16 @@ export class GridCanvas {
         continue;
       }
 
-      // Turbulence: slowly rotate wander angle, apply small perpendicular drift
       dc.turbulenceAngle += (Math.random() - 0.5) * 0.6;
       const turbStrength = 0.4;
       dc.vx += Math.cos(dc.turbulenceAngle) * turbStrength;
       dc.vy += Math.sin(dc.turbulenceAngle) * turbStrength;
 
-      // Physics: move with heavy drag (viscous fluid)
       dc.x += dc.vx;
       dc.y += dc.vy;
       dc.vx *= 0.92;
       dc.vy *= 0.92;
 
-      // Shimmer opacity: oscillate while fading out
       const activeAge = dc.age - dc.delay;
       const baseFade = Math.max(0, 1 - activeAge * 0.008);
       const shimmer = 0.5 + 0.5 * Math.sin(activeAge * 0.15 + dc.phase);
@@ -509,7 +634,6 @@ export class GridCanvas {
         continue;
       }
 
-      // Snap render position to nearest grid cell
       const snapX = Math.round(dc.x / step) * step;
       const snapY = Math.round(dc.y / step) * step;
 
