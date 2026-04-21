@@ -152,7 +152,8 @@ export function ProjectCard({ project, accentColor, expanded, onToggle }: Projec
   return (
     <article
       ref={cardRef}
-      className="relative overflow-hidden rounded-card bg-bg-surface"
+      className="relative overflow-hidden rounded-card"
+      style={{ backgroundColor: `color-mix(in srgb, ${accentColor} 8%, var(--color-bg-surface))` }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
@@ -167,7 +168,7 @@ export function ProjectCard({ project, accentColor, expanded, onToggle }: Projec
           <h3 className="font-display text-heading font-bold">
             {project.title}
           </h3>
-          <span className="mt-1 block font-mono text-mono text-text-secondary">
+          <span className="mt-1 block text-small text-text-secondary">
             {project.client} — {project.year}
           </span>
         </div>
@@ -225,7 +226,7 @@ export function ProjectCard({ project, accentColor, expanded, onToggle }: Projec
             {project.tools.map((tool) => (
               <span
                 key={tool}
-                className="rounded-full px-3 py-1 text-xs"
+                className="rounded-card px-3 py-1 text-xs"
                 style={{
                   backgroundColor: `${accentColor}15`,
                   color: accentColor,

@@ -43,18 +43,18 @@ export function About() {
 
   return (
     <div ref={containerRef} className="mx-auto w-full max-w-6xl px-6 py-32 lg:px-16">
-      <div className="grid gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16">
+      <div className="grid gap-12 md:grid-cols-[0.7fr_1.3fr] lg:grid-cols-[0.85fr_1.15fr] lg:gap-16">
         {/* Photo */}
         <div
           data-animate
-          className="relative aspect-[4/5] overflow-hidden rounded-card bg-bg-surface"
+          className="relative h-80 overflow-hidden rounded-card bg-bg-surface md:h-auto md:aspect-[4/5]"
         >
           <img
             src={assetPath("/images/james-purdy.webp")}
             alt="James Purdy"
             width={800}
             height={1000}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover object-[center_25%]"
           />
         </div>
 
@@ -62,7 +62,7 @@ export function About() {
         <div className="flex flex-col justify-center">
           <h2
             data-animate
-            className="font-display text-display font-bold leading-tight"
+            className="font-display text-display leading-none tracking-tight" style={{ fontWeight: 900 }}
           >
             A motion designer who builds things that move and things that think.
           </h2>
@@ -83,23 +83,23 @@ export function About() {
             </p>
           </div>
 
-          {/* Skills */}
-          <div data-animate className="mt-10 space-y-4">
+          {/* Skills — single accent block with columns */}
+          <div
+            data-animate
+            className="mt-10 grid grid-cols-2 gap-8 rounded-card bg-accent-purple px-6 py-6"
+          >
             {skillCategories.map((cat) => (
               <div key={cat.label}>
-                <span className="font-mono text-mono uppercase tracking-wider text-text-secondary">
-                  ({cat.label})
+                <span className="text-small font-medium uppercase tracking-wider text-white/70">
+                  {cat.label}
                 </span>
-                <div className="mt-2 flex flex-wrap gap-2">
+                <ul className="mt-3 space-y-1.5">
                   {cat.skills.map((skill) => (
-                    <span
-                      key={skill}
-                      className="rounded-full bg-bg-surface px-4 py-1.5 text-sm text-text-primary"
-                    >
+                    <li key={skill} className="text-sm font-medium text-white">
                       {skill}
-                    </span>
+                    </li>
                   ))}
-                </div>
+                </ul>
               </div>
             ))}
           </div>
@@ -109,7 +109,7 @@ export function About() {
             <a
               href={assetPath("/james-purdy-resume.pdf")}
               download
-              className="inline-flex items-center gap-2 rounded-full bg-text-primary px-6 py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-80"
+              className="inline-flex items-center gap-2 rounded-card border-2 border-accent-orange px-6 py-2.5 text-sm font-medium text-accent-orange transition-colors hover:bg-accent-orange hover:text-white"
             >
               Download Resume
               <span aria-hidden="true">&darr;</span>

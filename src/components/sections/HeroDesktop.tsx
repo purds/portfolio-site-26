@@ -100,7 +100,7 @@ export function HeroDesktop() {
   }, [mouse]);
 
   return (
-    <div className="relative w-full min-h-screen overflow-hidden lg:-ml-20 lg:w-[calc(100%+5rem)]">
+    <div className="relative w-full min-h-screen overflow-hidden lg:-ml-[clamp(10rem,12vw,18rem)] lg:w-[calc(100%+clamp(10rem,12vw,18rem))]">
       <canvas
         ref={canvasRef}
         className="absolute inset-0 h-full w-full"
@@ -112,7 +112,7 @@ export function HeroDesktop() {
           Motion designer who thinks in systems and moves in stories.
         </p>
       </div>
-      <div className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2 font-mono text-mono text-text-secondary">
+      <div className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2 text-small text-text-secondary">
         (scroll)
       </div>
     </div>

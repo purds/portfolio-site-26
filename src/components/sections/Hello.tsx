@@ -8,8 +8,19 @@ import { useGSAP } from "@gsap/react";
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
 const clients = [
-  "Google", "IBM", "VICE", "T-Mobile", "D&AD", "BESE", "Propel",
-];
+  { name: "Google", accent: "orange" },
+  { name: "IBM", accent: "purple" },
+  { name: "VICE", accent: "orange" },
+  { name: "T-Mobile", accent: "purple" },
+  { name: "D&AD", accent: "orange" },
+  { name: "BESE", accent: "purple" },
+  { name: "Propel", accent: "orange" },
+] as const;
+
+const accentClasses = {
+  orange: "bg-accent-orange text-white",
+  purple: "bg-accent-purple text-white",
+} as const;
 
 export function Hello() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -36,12 +47,12 @@ export function Hello() {
   return (
     <div
       ref={containerRef}
-      className="mx-auto grid w-full max-w-6xl gap-16 px-6 py-32 lg:grid-cols-[1.15fr_0.85fr] lg:px-16"
+      className="mx-auto grid w-full max-w-6xl gap-16 px-6 py-32 md:grid-cols-[1.15fr_0.85fr] lg:px-16"
     >
       <div>
         <h2
           data-animate
-          className="font-display text-display font-bold leading-tight"
+          className="font-display text-display leading-none tracking-tight" style={{ fontWeight: 900 }}
         >
           Motion design that moves people, not just pixels.
         </h2>
@@ -62,16 +73,16 @@ export function Hello() {
       </div>
       <div data-animate className="flex items-end">
         <div>
-          <span className="font-mono text-mono uppercase tracking-wider text-text-secondary">
+          <span className="text-small font-medium uppercase tracking-wider text-text-secondary">
             (Selected clients)
           </span>
           <ul className="mt-4 flex flex-wrap gap-2">
             {clients.map((client) => (
               <li
-                key={client}
-                className="rounded-full bg-bg-surface px-4 py-1.5 text-sm text-text-primary"
+                key={client.name}
+                className={`rounded-card px-4 py-1.5 text-sm font-medium ${accentClasses[client.accent]}`}
               >
-                {client}
+                {client.name}
               </li>
             ))}
           </ul>

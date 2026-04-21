@@ -61,7 +61,7 @@ export default function Home() {
       {mounted && isDesktop && !reducedMotion && <ParticleCanvas ref={particlesRef} />}
 
       <ParticleContext.Provider value={particlesRef}>
-      <main className="pt-14 lg:pl-20 lg:pt-0">
+      <main className="pt-14 lg:pl-[clamp(10rem,12vw,18rem)] lg:pt-0">
         {sections.map((section) => {
           const Component = sectionComponents[section.id];
           return (

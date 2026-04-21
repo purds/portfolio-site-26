@@ -45,12 +45,14 @@ export function CategorySection({ category, projects }: CategorySectionProps) {
 
   return (
     <div ref={containerRef} className="py-16" id={`category-${category.id}`}>
-      <span
-        className="font-mono text-mono uppercase tracking-wider"
-        style={{ color: category.accent }}
+      <div
+        className="rounded-card px-6 py-4"
+        style={{ backgroundColor: category.accent }}
       >
-        ({category.number} — {category.label})
-      </span>
+        <span className="font-display text-heading font-bold text-white">
+          {category.number} — {category.label}
+        </span>
+      </div>
 
       <div className="mt-8 flex flex-col gap-3">
         {projects.map((project) => (

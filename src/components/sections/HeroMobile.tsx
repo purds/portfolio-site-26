@@ -7,7 +7,7 @@ export function HeroMobile() {
       <p className="mt-6 text-body text-text-secondary prose-width">
         Motion designer who thinks in systems and moves in stories.
       </p>
-      <div className="mt-12 font-mono text-mono text-text-secondary">
+      <div className="mt-12 text-small text-text-secondary">
         (scroll)
       </div>
     </div>

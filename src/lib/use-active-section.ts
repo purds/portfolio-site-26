@@ -22,27 +22,28 @@ export function useActiveSection(sectionIds: string[]): string {
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
+          // Use pixel coverage instead of ratio — ratio penalizes tall sections
           ratiosRef.current[entry.target.id] = entry.isIntersecting
-            ? entry.intersectionRatio
+            ? entry.intersectionRect.height
             : 0;
         }
 
         let nextActiveId = activeIdRef.current;
-        let nextRatio = 0;
+        let nextPixels = 0;
 
         for (const id of sectionIds) {
-          const ratio = ratiosRef.current[id] ?? 0;
-          if (ratio > nextRatio) {
-            nextRatio = ratio;
+          const pixels = ratiosRef.current[id] ?? 0;
+          if (pixels > nextPixels) {
+            nextPixels = pixels;
             nextActiveId = id;
           }
         }
 
-        if (nextRatio > 0) {
+        if (nextPixels > 0) {
           setActiveId(nextActiveId);
         }
       },
-      { threshold: 0.3 }
+      { threshold: [0, 0.05, 0.1, 0.2, 0.3, 0.5, 0.7, 1] }
     );
 
     elements.forEach((el) => observer.observe(el));

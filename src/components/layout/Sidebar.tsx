@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useCallback } from "react";
+import gsap from "gsap";
 import { sections } from "@/data/sections";
-import { MagneticTarget } from "@/components/cursor/MagneticTarget";
 import { useParticles } from "@/lib/particle-context";
 
 interface SidebarProps {
@@ -10,98 +10,173 @@ interface SidebarProps {
   onNavigate: (sectionId: string) => void;
 }
 
+// Easing function — ease-out cubic for leading edge
+function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+// Easing function — ease-in-out quad for trailing edge (delayed feel)
+function easeInOutQuad(t: number): number {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
+}
+
 export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
   const particlesRef = useParticles();
   const prevSection = useRef(activeSection);
   const timeoutIdsRef = useRef<number[]>([]);
 
-  // Dock-style scaling state
-  const navRef = useRef<HTMLElement>(null);
-  const tileRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const [scales, setScales] = useState<number[]>(sections.map(() => 1));
-  const isHoveringNav = useRef(false);
+  // Pill refs
+  const pillRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
 
-  // Typeout state
-  const [hoveredSection, setHoveredSection] = useState<string | null>(null);
-  const [displayedChars, setDisplayedChars] = useState(0);
-  const typeIntervalRef = useRef<number | null>(null);
-  const isErasing = useRef(false);
+  // Scroll-driven pill state
+  const rafRef = useRef<number>(0);
+  const sectionRectsRef = useRef<{ top: number; height: number }[]>([]);
+  const confirmedColorRef = useRef(sections[0]?.accent ?? "#FF5F1F");
+  const colorTweenRef = useRef<gsap.core.Tween | null>(null);
 
-  const clearTypeInterval = useCallback(() => {
-    if (typeIntervalRef.current !== null) {
-      clearInterval(typeIntervalRef.current);
-      typeIntervalRef.current = null;
-    }
-  }, []);
-
-  // Handle dock-style scaling on mouse move
-  const handleNavMouseMove = useCallback((e: React.MouseEvent<HTMLElement>) => {
-    isHoveringNav.current = true;
-    const navRect = navRef.current?.getBoundingClientRect();
-    if (!navRect) return;
-
-    const mouseY = e.clientY;
-    const newScales = tileRefs.current.map((tileEl) => {
-      if (!tileEl) return 1;
-      const rect = tileEl.getBoundingClientRect();
-      const tileCenterY = rect.top + rect.height / 2;
-      const distance = mouseY - tileCenterY;
-      const scale = 1 + 0.3 * Math.exp(-(distance * distance) / (2 * 60 * 60));
-      return scale;
+  // Cache section element positions
+  const measureSections = useCallback(() => {
+    sectionRectsRef.current = sections.map((s) => {
+      const el = document.getElementById(s.id);
+      if (!el) return { top: 0, height: 0 };
+      return { top: el.offsetTop, height: el.offsetHeight };
     });
-    setScales(newScales);
   }, []);
 
-  const handleNavMouseLeave = useCallback(() => {
-    isHoveringNav.current = false;
-    setScales(sections.map(() => 1));
-  }, []);
+  // Scroll-driven pill positioning
+  const updatePill = useCallback(() => {
+    const pill = pillRef.current;
+    if (!pill) return;
 
-  // Handle typeout on tile hover
-  const handleTileHover = useCallback((sectionId: string) => {
-    clearTypeInterval();
-    isErasing.current = false;
-    setHoveredSection(sectionId);
-    setDisplayedChars(0);
+    const rects = sectionRectsRef.current;
+    if (rects.length === 0) return;
 
-    const label = sections.find((s) => s.id === sectionId)?.label ?? "";
-    let chars = 0;
-    typeIntervalRef.current = window.setInterval(() => {
-      chars++;
-      setDisplayedChars(chars);
-      if (chars >= label.length) {
-        clearTypeInterval();
+    const scrollY = window.scrollY;
+    const vh = window.innerHeight;
+    const scrollCenter = scrollY + vh * 0.45;
+
+    // Find which section the scroll center is in.
+    // Use transitionInEnd (40% into each section) as the flip threshold so
+    // currentIdx doesn't advance until the previous transition zone completes.
+    let currentIdx = 0;
+    for (let i = 1; i < rects.length; i++) {
+      const transitionInEnd = rects[i].top + rects[i].height * 0.4;
+      if (scrollCenter >= transitionInEnd) {
+        currentIdx = i;
       }
-    }, 40);
-  }, [clearTypeInterval]);
-
-  const handleTileLeave = useCallback(() => {
-    clearTypeInterval();
-    isErasing.current = true;
-
-    typeIntervalRef.current = window.setInterval(() => {
-      setDisplayedChars((prev) => {
-        if (prev <= 1) return 0;
-        return prev - 1;
-      });
-    }, 30);
-  }, [clearTypeInterval]);
-
-  // Clean up when erase animation finishes (side effects must not live inside updater)
-  useEffect(() => {
-    if (isErasing.current && displayedChars === 0) {
-      clearTypeInterval();
-      setHoveredSection(null);
-      isErasing.current = false;
     }
-  }, [displayedChars, clearTypeInterval]);
 
-  // Cleanup intervals on unmount
+    // Calculate progress toward next section
+    const current = rects[currentIdx];
+    const nextIdx = Math.min(currentIdx + 1, rects.length - 1);
+    const next = rects[nextIdx];
+
+    let t = 0;
+    if (currentIdx !== nextIdx && next.top > current.top) {
+      // Start transitioning when we're in the last 40% of the current section
+      const transitionStart = current.top + current.height * 0.6;
+      // End when we're 40% into the next section
+      const transitionEnd = next.top + next.height * 0.4;
+
+      if (scrollCenter >= transitionStart && scrollCenter <= transitionEnd) {
+        t = (scrollCenter - transitionStart) / (transitionEnd - transitionStart);
+        t = clamp(t, 0, 1);
+      } else if (scrollCenter > transitionEnd) {
+        t = 1;
+      }
+    }
+
+    // Get nav item positions
+    const fromItem = itemRefs.current[currentIdx];
+    const toItem = itemRefs.current[nextIdx];
+    if (!fromItem || !toItem) return;
+
+    const fromTop = fromItem.offsetTop;
+    const fromBottom = fromItem.offsetTop + fromItem.offsetHeight;
+    const toTop = toItem.offsetTop;
+    const toBottom = toItem.offsetTop + toItem.offsetHeight;
+
+    if (t === 0 || currentIdx === nextIdx) {
+      // Fully on current section
+      pill.style.top = `${fromTop}px`;
+      pill.style.height = `${fromBottom - fromTop}px`;
+    } else {
+      // Leading edge moves ahead, trailing edge catches up
+      // Both reach 1.0 when t=1.0 — no snap
+      const leadingT = easeOutCubic(t);
+      // Trailing lags behind but fully arrives at t=1
+      const trailingRaw = clamp((t - 0.15) / 0.85, 0, 1);
+      const trailingT = easeInOutQuad(trailingRaw);
+
+      const movingDown = toTop > fromTop;
+
+      let pillTopVal: number;
+      let pillBottomVal: number;
+
+      if (movingDown) {
+        pillTopVal = lerp(fromTop, toTop, trailingT);
+        pillBottomVal = lerp(fromBottom, toBottom, leadingT);
+      } else {
+        pillTopVal = lerp(fromTop, toTop, leadingT);
+        pillBottomVal = lerp(fromBottom, toBottom, trailingT);
+      }
+
+      pill.style.top = `${pillTopVal}px`;
+      pill.style.height = `${Math.max(pillBottomVal - pillTopVal, fromBottom - fromTop)}px`;
+    }
+
+    rafRef.current = requestAnimationFrame(updatePill);
+  }, []);
+
+  // Color transition on confirmed section change
   useEffect(() => {
-    return () => {
-      clearTypeInterval();
+    const idx = sections.findIndex((s) => s.id === activeSection);
+    const accent = sections[idx]?.accent ?? "#FF5F1F";
+
+    if (accent !== confirmedColorRef.current) {
+      colorTweenRef.current?.kill();
+      colorTweenRef.current = gsap.to(pillRef.current, {
+        backgroundColor: accent,
+        duration: 0.3,
+        ease: "power2.inOut",
+      });
+      confirmedColorRef.current = accent;
+    }
+  }, [activeSection]);
+
+  // Start scroll listener
+  useEffect(() => {
+    measureSections();
+
+    // Set initial pill color
+    const idx = sections.findIndex((s) => s.id === activeSection);
+    const accent = sections[idx]?.accent ?? "#FF5F1F";
+    if (pillRef.current) {
+      pillRef.current.style.backgroundColor = accent;
+    }
+    confirmedColorRef.current = accent;
+
+    rafRef.current = requestAnimationFrame(updatePill);
+
+    const handleResize = () => {
+      measureSections();
     };
-  }, [clearTypeInterval]);
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [measureSections, updatePill, activeSection]);
 
   // Particle streak effect on section change
   useEffect(() => {
@@ -113,9 +188,10 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
     const prevAccent = sections[prevIndex]?.accent ?? "#FF5F1F";
 
     const sidebarX = 40;
-    const tileGap = 60;
-    const startY = window.innerHeight / 2 - (sections.length * tileGap) / 2 + prevIndex * tileGap;
-    const endY = window.innerHeight / 2 - (sections.length * tileGap) / 2 + nextIndex * tileGap;
+    const tileGap = 48;
+    const baseY = window.innerHeight / 2 - (sections.length * tileGap) / 2 + 80;
+    const startY = baseY + prevIndex * tileGap;
+    const endY = baseY + nextIndex * tileGap;
 
     const steps = 8;
     timeoutIdsRef.current.forEach(clearTimeout);
@@ -145,69 +221,64 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
 
   return (
     <nav
-      ref={navRef}
-      className="fixed left-0 top-0 z-50 hidden h-screen w-20 flex-col items-center justify-center gap-3 lg:flex"
+      className="fixed left-0 top-0 z-50 hidden h-screen w-[clamp(10rem,12vw,18rem)] flex-col justify-between px-6 py-8 lg:flex"
       aria-label="Section navigation"
-      onMouseMove={handleNavMouseMove}
-      onMouseLeave={handleNavMouseLeave}
     >
-      {sections.map((section, index) => {
-        const isActive = activeSection === section.id;
-        const scale = scales[index] ?? 1;
-        const isHovered = hoveredSection === section.id;
-        const label = section.label;
+      {/* Name */}
+      <div>
+        <span className="font-display text-heading font-bold leading-none text-text-primary">
+          James
+          <br />
+          Purdy
+        </span>
+      </div>
 
-        return (
-          <div
-            key={section.id}
-            ref={(el) => { tileRefs.current[index] = el; }}
-            className="relative"
-            onMouseEnter={() => handleTileHover(section.id)}
-            onMouseLeave={handleTileLeave}
-          >
-            <MagneticTarget
-              config={{ strength: 0.4, radius: 100, tiltDeg: 0 }}
+      {/* Section links */}
+      <ul className="relative flex flex-col gap-1">
+        {/* Scroll-driven pill indicator */}
+        <div
+          ref={pillRef}
+          className="pointer-events-none absolute left-0 right-0 rounded-card"
+        />
+
+        {sections.map((section, index) => {
+          const isActive = activeSection === section.id;
+
+          return (
+            <li
+              key={section.id}
+              ref={(el) => { itemRefs.current[index] = el; }}
+              className="relative z-10"
             >
               <button
                 onClick={() => onNavigate(section.id)}
                 aria-label={`Go to ${section.label}`}
                 aria-current={isActive ? "true" : undefined}
-                className="group relative flex h-12 w-12 items-center justify-center rounded-[0.5rem]"
-                style={{
-                  backgroundColor: isActive ? section.accent : "transparent",
-                  border: isActive
-                    ? "none"
-                    : `1.5px solid ${section.accent}40`,
-                  transform: `scale(${scale})`,
-                  transition: isHoveringNav.current
-                    ? "transform 0.05s ease-out"
-                    : "transform 0.15s ease-out",
-                }}
+                className="flex w-full items-baseline gap-3 rounded-card px-3 py-2 text-left"
               >
                 <span
-                  className="font-mono text-xs font-medium transition-colors"
-                  style={{
-                    color: isActive ? "#fff" : section.accent,
-                  }}
+                  className="font-display text-small font-bold"
+                  style={{ color: isActive ? "#fff" : section.accent, transition: "color 0.5s cubic-bezier(0.4, 0, 0.2, 1)" }}
                 >
                   {section.number}
                 </span>
+                <span
+                  className="text-small font-medium"
+                  style={{
+                    color: isActive ? "#fff" : "var(--color-text-secondary)",
+                    transition: "color 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
+                  }}
+                >
+                  {section.label}
+                </span>
               </button>
-            </MagneticTarget>
+            </li>
+          );
+        })}
+      </ul>
 
-            {/* Typeout label */}
-            {isHovered && displayedChars > 0 && (
-              <span
-                className="pointer-events-none absolute left-full top-1/2 ml-3 -translate-y-1/2 whitespace-nowrap font-mono text-xs"
-                style={{ color: section.accent }}
-              >
-                {label.slice(0, displayedChars)}
-                <span className="animate-pulse">|</span>
-              </span>
-            )}
-          </div>
-        );
-      })}
+      {/* Spacer for visual balance */}
+      <div />
     </nav>
   );
 }
