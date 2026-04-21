@@ -116,6 +116,22 @@ At 60fps: ~120k rotation-matrix-muls/sec. Trivial in plain JS; no WebGL needed. 
 
 **Untouched:** cursor trail, selection box (solid-box / disintegration lifecycle — the recent redesign stays as-is), breathing for cell-activation fade, letter-cell styling. All the interactions currently running in `GridCanvas` keep working on top of the 3D title.
 
+## Performance (non-negotiable)
+
+WebGL is deliberately rejected for this feature. Math-per-pixel is near zero — we're drawing ~400–600 flat rounded fills per frame, not doing per-pixel shading. WebGL's setup overhead (shader compile, VAO/VBO, separate context or full engine port) costs complexity without meaningful speedup, and Canvas 2D is the more portable target across Safari in particular.
+
+To stay inside a 60fps budget on Safari at retina DPR, the implementation **must**:
+
+1. **Voxel storage in typed arrays.** The pre-computed surface voxel list is a `Float32Array` of `[x0, y0, z0, x1, y1, z1, ...]` (9 slots per voxel: position, face-origin enum, letter flag, face-normal xyz). No per-frame allocation. No per-voxel object creation.
+2. **Group fills by opacity bucket.** Quantize per-cell opacity into ~10 buckets (e.g., 10%, 20%, …, 100%). For each bucket, issue one `beginPath()`, `roundRect()` every cell in that bucket, then one `ctx.fill()`. Batching collapses ~500 paths/fills into ~10 fills per frame. This is 5–10× on Safari and worth the small refactor.
+3. **Skip zero-alpha cells.** Never `beginPath()`/`fill()` a cell at <1% alpha.
+4. **Offscreen pause.** `IntersectionObserver` on the hero element pauses the RAF loop when the hero is fully out of view. Safari is aggressive about offscreen throttling; explicit pause prevents jump-on-return artifacts.
+5. **DPR cap at 2.** `canvas.width = clientWidth * Math.min(devicePixelRatio, 2)`. Retina 2× is worth it visually; 3× isn't, and desktop hardware rarely needs it. Explicit clamp.
+
+**Dev-only FPS overlay.** During implementation, add a small FPS counter gated behind `process.env.NODE_ENV === "development"` (or a query-string flag). Target: sustained 60fps on a 2× retina MacBook Pro in Safari, Chrome, Firefox. If we miss it, tighten the opacity bucketing or drop voxel density before any fallback — WebGL is reconsidered only if we identify a specific, measured bottleneck that CPU can't solve.
+
+**What we're *not* doing** (to keep scope honest): no Web Worker / OffscreenCanvas. At ~0.5ms of math per frame, moving to a worker adds postMessage overhead larger than the savings.
+
 ## Dependencies
 
 - **GSAP** is already in the project (per `CLAUDE.md` / `DESIGN.md`). Use its core `gsap.to` for the intro tween. No new dependency.
