@@ -1,54 +1,111 @@
 "use client";
 
 import { useRef, useEffect } from "react";
+import gsap from "gsap";
 import { GridCanvas } from "@/lib/grid-canvas";
 import { useMouse } from "@/lib/use-mouse";
+import { useReducedMotion } from "@/lib/use-reduced-motion";
 import { assetPath } from "@/lib/base-path";
+
+function clamp(n: number, lo: number, hi: number) {
+  return n < lo ? lo : n > hi ? hi : n;
+}
 
 export function HeroDesktop() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const heroContainerRef = useRef<HTMLDivElement>(null);
+  const fpsOverlayRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<GridCanvas | null>(null);
   const mouse = useMouse();
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const heroContainer = heroContainerRef.current;
+    if (!canvas || !heroContainer) return;
 
     const grid = new GridCanvas(canvas);
     gridRef.current = grid;
 
-    // Load hidden image
     const img = new Image();
     img.src = assetPath("/images/hidden-layer.webp");
     img.onload = () => grid.setHiddenImage(img);
 
-    // Initialize grid-integrated title
     grid.initTitle(["PURDY", "GOOD"]);
-
     grid.start();
 
-    // Track mouse over canvas
+    const introObj = { yaw: reducedMotion ? 0 : Math.PI * 4 };
+    let introTween: gsap.core.Tween | null = null;
+    if (!reducedMotion) {
+      introTween = gsap.to(introObj, {
+        yaw: 0,
+        duration: 1.5,
+        ease: "power3.out",
+      });
+    }
+
+    const showFps =
+      process.env.NODE_ENV === "development" ||
+      (typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("fps") === "1");
+    let fpsEma = 60;
+    let lastFrameTime = performance.now();
+
     let raf: number;
-    function trackMouse() {
+    function tick() {
+      const now = performance.now();
+      const dt = now - lastFrameTime;
+      lastFrameTime = now;
+      if (dt > 0) {
+        const instantFps = 1000 / dt;
+        fpsEma = fpsEma * (29 / 30) + instantFps * (1 / 30);
+      }
+
       const rect = canvas!.getBoundingClientRect();
       const localX = mouse.current.x - rect.left;
       const localY = mouse.current.y - rect.top;
-
-      if (
+      const inside =
         localX >= 0 &&
         localY >= 0 &&
         localX <= rect.width &&
-        localY <= rect.height
-      ) {
+        localY <= rect.height;
+
+      if (inside) {
         grid.activateAt(localX, localY, mouse.current.velocity);
         grid.setMousePosition(localX, localY);
       }
 
-      raf = requestAnimationFrame(trackMouse);
-    }
-    raf = requestAnimationFrame(trackMouse);
+      const heroRect = heroContainer!.getBoundingClientRect();
+      const scrollProgress = clamp(
+        -heroRect.top / Math.max(heroRect.height, 1),
+        0,
+        1
+      );
 
-    // Selection event handlers
+      grid.setTitleInputs({
+        mouseX: inside ? localX : null,
+        mouseY: inside ? localY : null,
+        scrollProgress,
+        introYaw: introObj.yaw,
+      });
+
+      if (showFps && fpsOverlayRef.current) {
+        fpsOverlayRef.current.textContent = `${fpsEma.toFixed(1)} fps`;
+      }
+
+      raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) grid.resumeLoop();
+        else grid.pauseLoop();
+      },
+      { threshold: 0 }
+    );
+    observer.observe(heroContainer);
+
     const DRAG_THRESHOLD_PX = 4;
     let isDragging = false;
     let dragStart: { x: number; y: number } | null = null;
@@ -103,7 +160,6 @@ export function HeroDesktop() {
     canvas.addEventListener("mouseup", onMouseUp);
     canvas.addEventListener("click", onClick);
 
-    // Handle resize
     function onResize() {
       grid.resize();
       grid.initTitle(["PURDY", "GOOD"]);
@@ -112,6 +168,8 @@ export function HeroDesktop() {
 
     return () => {
       cancelAnimationFrame(raf);
+      introTween?.kill();
+      observer.disconnect();
       grid.destroy();
       window.removeEventListener("resize", onResize);
       canvas.removeEventListener("mousedown", onMouseDown);
@@ -119,10 +177,18 @@ export function HeroDesktop() {
       canvas.removeEventListener("mouseup", onMouseUp);
       canvas.removeEventListener("click", onClick);
     };
-  }, [mouse]);
+  }, [mouse, reducedMotion]);
+
+  const showFpsOverlay =
+    process.env.NODE_ENV === "development" ||
+    (typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("fps") === "1");
 
   return (
-    <div className="relative w-full min-h-screen overflow-hidden lg:-ml-[clamp(10rem,12vw,18rem)] lg:w-[calc(100%+clamp(10rem,12vw,18rem))]">
+    <div
+      ref={heroContainerRef}
+      className="relative w-full min-h-screen overflow-hidden lg:-ml-[clamp(10rem,12vw,18rem)] lg:w-[calc(100%+clamp(10rem,12vw,18rem))]"
+    >
       <canvas
         ref={canvasRef}
         className="absolute inset-0 h-full w-full"
@@ -137,6 +203,14 @@ export function HeroDesktop() {
       <div className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2 text-small text-text-secondary">
         (scroll)
       </div>
+      {showFpsOverlay && (
+        <div
+          ref={fpsOverlayRef}
+          className="absolute top-2 right-2 z-20 rounded bg-black/60 px-2 py-1 text-xs font-mono text-white"
+        >
+          -- fps
+        </div>
+      )}
     </div>
   );
 }
