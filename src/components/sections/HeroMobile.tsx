@@ -1,6 +1,6 @@
 export function HeroMobile() {
   return (
-    <div className="flex min-h-screen flex-col items-start justify-center px-6 py-24">
+    <div className="flex w-full min-h-screen flex-col items-start justify-center px-6 py-24">
       <h1 className="font-display text-display-xl font-bold leading-none tracking-tight">
         PURDYGOOD
       </h1>

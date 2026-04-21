@@ -8,7 +8,6 @@ import { useGSAP } from "@gsap/react";
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
 const links = [
-  { label: "Email", action: "talk", href: "mailto:james@purdygood.me" },
   { label: "LinkedIn", action: "connect", href: "https://linkedin.com/in/jamespurdy" },
   { label: "Vimeo", action: "watch", href: "https://vimeo.com/purdygood" },
   { label: "GitHub", action: "build", href: "https://github.com/purdygoo" },
@@ -39,13 +38,21 @@ export function Contact() {
   return (
     <div
       ref={containerRef}
-      className="mx-auto flex max-w-4xl flex-col items-start px-6 py-24 lg:px-16"
+      className="mx-auto flex w-full max-w-4xl flex-col items-start px-6 py-32 lg:px-16"
     >
-      <h2 data-animate className="font-display text-display font-bold">
+      <h2 data-animate className="font-display text-display-xl font-bold">
         Say hello.
       </h2>
 
-      <p data-animate className="mt-6 text-body text-text-secondary">
+      <a
+        data-animate
+        href="mailto:james@purdygood.me"
+        className="mt-10 font-display text-display font-bold text-text-primary transition-colors hover:text-accent-orange"
+      >
+        james@purdygood.me
+      </a>
+
+      <p data-animate className="mt-8 text-body text-text-secondary">
         Currently available for motion design roles and select freelance
         projects.
       </p>
@@ -55,8 +62,8 @@ export function Contact() {
           <a
             key={link.label}
             href={link.href}
-            target={link.href.startsWith("mailto") ? undefined : "_blank"}
-            rel={link.href.startsWith("mailto") ? undefined : "noopener noreferrer"}
+            target="_blank"
+            rel="noopener noreferrer"
             className="rounded-full bg-bg-surface px-6 py-3 text-body font-medium text-text-primary transition-colors hover:bg-bg-surface-raised"
           >
             {link.label}{" "}

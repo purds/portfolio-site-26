@@ -42,8 +42,8 @@ export function About() {
   );
 
   return (
-    <div ref={containerRef} className="mx-auto max-w-6xl px-6 py-24 lg:px-16">
-      <div className="grid gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
+    <div ref={containerRef} className="mx-auto w-full max-w-6xl px-6 py-32 lg:px-16">
+      <div className="grid gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16">
         {/* Photo */}
         <div
           data-animate

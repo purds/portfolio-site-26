@@ -23,7 +23,7 @@ export function HeroDesktop() {
     img.onload = () => grid.setHiddenImage(img);
 
     // Initialize grid-integrated title
-    grid.initTitle("PURDYGOOD");
+    grid.initTitle(["PURDY", "GOOD"]);
 
     grid.start();
 
@@ -84,7 +84,7 @@ export function HeroDesktop() {
     // Handle resize
     function onResize() {
       grid.resize();
-      grid.initTitle("PURDYGOOD");
+      grid.initTitle(["PURDY", "GOOD"]);
     }
     window.addEventListener("resize", onResize);
 
@@ -100,20 +100,20 @@ export function HeroDesktop() {
   }, [mouse]);
 
   return (
-    <div className="relative flex min-h-screen items-center">
+    <div className="relative w-full min-h-screen overflow-hidden lg:-ml-20 lg:w-[calc(100%+5rem)]">
       <canvas
         ref={canvasRef}
         className="absolute inset-0 h-full w-full"
         style={{ touchAction: "none" }}
       />
-      <div className="relative z-10 px-16">
-        <h1 className="sr-only">PURDYGOOD</h1>
-        <p className="mt-6 text-body text-text-secondary prose-width">
+      <h1 className="sr-only">PURDYGOOD</h1>
+      <div className="absolute bottom-16 left-24 z-10">
+        <p className="text-body text-text-secondary prose-width">
           Motion designer who thinks in systems and moves in stories.
         </p>
-        <div className="mt-12 font-mono text-mono text-text-secondary">
-          (scroll)
-        </div>
+      </div>
+      <div className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2 font-mono text-mono text-text-secondary">
+        (scroll)
       </div>
     </div>
   );

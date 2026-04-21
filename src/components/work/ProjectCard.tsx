@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import type { Project } from "@/data/projects";
-import { MagneticTarget } from "@/components/cursor/MagneticTarget";
 import { useIsDesktop } from "@/lib/use-is-desktop";
 import { useParticles } from "@/lib/particle-context";
 
@@ -13,12 +12,14 @@ gsap.registerPlugin(useGSAP);
 interface ProjectCardProps {
   project: Project;
   accentColor: string;
+  expanded: boolean;
+  onToggle: () => void;
 }
 
-export function ProjectCard({ project, accentColor }: ProjectCardProps) {
-  const [expanded, setExpanded] = useState(false);
+export function ProjectCard({ project, accentColor, expanded, onToggle }: ProjectCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLElement>(null);
+  const thumbRef = useRef<HTMLDivElement>(null);
   const particlesRef = useParticles();
   const isAnimatingRef = useRef(false);
   const animationRef = useRef<gsap.core.Tween | null>(null);
@@ -26,6 +27,8 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
   const isDesktop = useIsDesktop();
   const { contextSafe } = useGSAP({ scope: cardRef });
   const panelId = `project-panel-${project.id}`;
+
+  const prevExpandedRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -35,13 +38,39 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
     };
   }, []);
 
+  // Handle external collapse (accordion)
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!content) return;
+
+    if (prevExpandedRef.current && !expanded) {
+      animationRef.current?.kill();
+      isAnimatingRef.current = true;
+      animationRef.current = gsap.to(content, {
+        height: 0,
+        opacity: 0,
+        duration: 0.4,
+        ease: "expo.out",
+        onComplete: () => {
+          gsap.set(content, { display: "none" });
+          animationRef.current = null;
+          isAnimatingRef.current = false;
+        },
+        onInterrupt: () => {
+          animationRef.current = null;
+          isAnimatingRef.current = false;
+        },
+      });
+    }
+    prevExpandedRef.current = expanded;
+  }, [expanded]);
+
   const toggleExpand = contextSafe(() => {
     const content = contentRef.current;
     if (!content) return;
     if (isAnimatingRef.current) return;
 
     if (!expanded) {
-      // Expand: set to auto height with GSAP
       isAnimatingRef.current = true;
       gsap.set(content, { display: "block", height: "auto" });
       const fullHeight = content.offsetHeight;
@@ -64,33 +93,27 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
           },
         }
       );
-      setExpanded(true);
+      onToggle();
 
       // Particle burst on expand
       if (particlesRef?.current && cardRef.current) {
         const rect = cardRef.current.getBoundingClientRect();
         const color = accentColor;
         const emitter = particlesRef.current;
-
-        // Top edge
         emitter.emit(rect.left + rect.width / 2, rect.top, 6, {
           color, speed: 4, direction: -Math.PI / 2, spread: Math.PI * 0.6, decay: 0.025,
         });
-        // Bottom edge
         emitter.emit(rect.left + rect.width / 2, rect.bottom, 6, {
           color, speed: 4, direction: Math.PI / 2, spread: Math.PI * 0.6, decay: 0.025,
         });
-        // Left edge
         emitter.emit(rect.left, rect.top + rect.height / 2, 4, {
           color, speed: 3, direction: Math.PI, spread: Math.PI * 0.4, decay: 0.025,
         });
-        // Right edge
         emitter.emit(rect.right, rect.top + rect.height / 2, 4, {
           color, speed: 3, direction: 0, spread: Math.PI * 0.4, decay: 0.025,
         });
       }
     } else {
-      // Contract
       isAnimatingRef.current = true;
       animationRef.current = gsap.to(content, {
         height: 0,
@@ -99,7 +122,6 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
         ease: "expo.out",
         onComplete: () => {
           gsap.set(content, { display: "none" });
-          setExpanded(false);
           animationRef.current = null;
           isAnimatingRef.current = false;
         },
@@ -108,14 +130,36 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
           isAnimatingRef.current = false;
         },
       });
+      onToggle();
     }
   });
 
-  const card = (
-    <article ref={cardRef} className="overflow-hidden rounded-card bg-bg-surface">
+  // Hover: tinted thumbnail fades in behind text (desktop only, not when expanded)
+  const handleMouseEnter = () => {
+    if (!isDesktop || !project.thumbnail || expanded) return;
+    const thumb = thumbRef.current;
+    if (!thumb) return;
+    gsap.to(thumb, { opacity: 1, y: 0, duration: 0.4, ease: "expo.out" });
+  };
+
+  const handleMouseLeave = () => {
+    if (!isDesktop || !project.thumbnail) return;
+    const thumb = thumbRef.current;
+    if (!thumb) return;
+    gsap.to(thumb, { opacity: 0, y: 8, duration: 0.3, ease: "power2.in" });
+  };
+
+  return (
+    <article
+      ref={cardRef}
+      className="relative overflow-hidden rounded-card bg-bg-surface"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* Title / metadata bar — always visible */}
       <button
         onClick={toggleExpand}
-        className="flex w-full items-center justify-between px-6 py-4 text-left"
+        className="relative z-20 flex w-full items-center justify-between px-6 py-5 text-left"
         aria-expanded={expanded}
         aria-controls={panelId}
       >
@@ -138,22 +182,31 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
         </span>
       </button>
 
-      <div className="relative aspect-video bg-bg-surface-raised">
-        {project.thumbnail ? (
+      {/* Thumbnail overlay — fades in behind text on hover, hidden when expanded */}
+      {project.thumbnail && !expanded && (
+        <div
+          ref={thumbRef}
+          className="pointer-events-none absolute inset-0 z-10"
+          style={{ opacity: 0, transform: "translateY(8px)" }}
+        >
           <img
             src={project.thumbnail}
-            alt={`${project.title} — ${project.client}`}
+            alt=""
             className="h-full w-full object-cover"
             loading="lazy"
           />
-        ) : (
-          <div className="flex h-full items-center justify-center text-text-secondary">
-            <span className="font-mono text-mono">{project.client}</span>
-          </div>
-        )}
-      </div>
+          {/* Accent color tint */}
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: accentColor, opacity: 0.6, mixBlendMode: "multiply" }}
+          />
+        </div>
+      )}
 
+      {/* Expandable content */}
       <div
+        id={panelId}
+        role="region"
         ref={contentRef}
         className="overflow-hidden"
         style={{ display: "none", height: 0 }}
@@ -195,11 +248,5 @@ export function ProjectCard({ project, accentColor }: ProjectCardProps) {
         </div>
       </div>
     </article>
-  );
-
-  return isDesktop ? (
-    <MagneticTarget config={{ strength: 0.15, radius: 250, tiltDeg: 5 }}>{card}</MagneticTarget>
-  ) : (
-    card
   );
 }

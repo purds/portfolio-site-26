@@ -51,11 +51,20 @@ export class GridCanvas {
     vx: number;
     vy: number;
     opacity: number;
+    delay: number;        // frames before this cell starts moving
+    phase: number;        // random phase for shimmer oscillation
+    turbulenceAngle: number; // slowly drifting angle for flow-field wander
+    age: number;          // frames since spawn
   }[] = [];
 
   // Letter cell state
   private letterCells: Map<string, TitleCell> = new Map();
   private _mouseLocal: { x: number; y: number } | null = null;
+
+  // Idle breathing state
+  private lastMouseMoveTime = 0;
+  private lastMouseCol = -1;
+  private lastMouseRow = -1;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -110,6 +119,13 @@ export class GridCanvas {
     const radius =
       velocity > velocityThreshold ? fastTrailWidth : trailWidth;
     const now = performance.now();
+
+    // Track idle state: update timestamp only when cursor moves to a new cell
+    if (col !== this.lastMouseCol || row !== this.lastMouseRow) {
+      this.lastMouseMoveTime = now;
+      this.lastMouseCol = col;
+      this.lastMouseRow = row;
+    }
 
     for (let dr = -radius; dr <= radius; dr++) {
       for (let dc = -radius; dc <= radius; dc++) {
@@ -167,9 +183,18 @@ export class GridCanvas {
       return false;
     }
 
-    // Trigger disintegration
+    // Trigger disintegration — staggered ripple from center
     const centerCol = (minCol + maxCol) / 2;
     const centerRow = (minRow + maxRow) / 2;
+
+    // Find max distance for normalizing delay
+    let maxDist = 0;
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        const d = Math.sqrt((c - centerCol) ** 2 + (r - centerRow) ** 2);
+        if (d > maxDist) maxDist = d;
+      }
+    }
 
     for (let r = minRow; r <= maxRow; r++) {
       for (let c = minCol; c <= maxCol; c++) {
@@ -189,14 +214,22 @@ export class GridCanvas {
           dy /= dist;
         }
 
+        // Stagger onset: inner cells dissolve first, outer cells wait
+        const normalizedDist = maxDist > 0 ? dist / maxDist : 0;
+        const delay = Math.floor(normalizedDist * 18 + Math.random() * 6);
+
         this.disintegratingCells.push({
           col: c,
           row: r,
           x: cell.x,
           y: cell.y,
-          vx: dx * (3 + Math.random() * 4),
-          vy: dy * (3 + Math.random() * 4),
+          vx: dx * (0.8 + Math.random() * 1.2),   // much slower — fluid, not explosive
+          vy: dy * (0.8 + Math.random() * 1.2),
           opacity: 1,
+          delay,
+          phase: Math.random() * Math.PI * 2,       // random shimmer phase
+          turbulenceAngle: Math.random() * Math.PI * 2, // initial wander direction
+          age: 0,
         });
 
         cell.activation = 1;
@@ -209,18 +242,41 @@ export class GridCanvas {
     return true;
   }
 
-  // Title methods
-  initTitle(text: string) {
+  // Title methods — accepts a single string or array of lines
+  initTitle(lines: string | string[]) {
     const charWidth = 5;
-    const letterSpacing = 2;
-    const totalWidth = text.length * (charWidth + letterSpacing) - letterSpacing;
-    const startCol = Math.floor((this.cols - totalWidth) / 2);
-    const startRow = Math.floor(this.rows / 2) - 3;
+    const desiredSpacing = 2;
+    const glyphHeight = 7;
+    const lineGap = 2; // rows between lines
+    const availableCols = this.cols - 2;
 
-    const cells = getLetterCells(text, startCol, startRow, letterSpacing);
+    const textLines = Array.isArray(lines) ? lines : [lines];
+
+    // Total height of all lines stacked
+    const totalHeight = textLines.length * glyphHeight + (textLines.length - 1) * lineGap;
+    const baseRow = Math.floor(this.rows / 2) - Math.floor(totalHeight / 2);
+
     this.letterCells.clear();
-    for (const cell of cells) {
-      this.letterCells.set(`${cell.col},${cell.row}`, cell);
+
+    for (let i = 0; i < textLines.length; i++) {
+      const text = textLines[i];
+      const row = baseRow + i * (glyphHeight + lineGap);
+
+      // Dynamic spacing per line
+      let letterSpacing = desiredSpacing;
+      const totalWidthDesired = text.length * charWidth + (text.length - 1) * desiredSpacing;
+      if (totalWidthDesired > availableCols) {
+        const gapBudget = availableCols - text.length * charWidth;
+        letterSpacing = Math.max(0, Math.floor(gapBudget / Math.max(1, text.length - 1)));
+      }
+
+      const totalWidth = text.length * charWidth + (text.length - 1) * letterSpacing;
+      const startCol = Math.max(0, Math.floor((this.cols - totalWidth) / 2));
+
+      const cells = getLetterCells(text, startCol, row, letterSpacing);
+      for (const cell of cells) {
+        this.letterCells.set(`${cell.col},${cell.row}`, cell);
+      }
     }
   }
 
@@ -307,6 +363,29 @@ export class GridCanvas {
       }
     }
 
+    // Idle breathing: gentle pulse when cursor rests for 2.5s+
+    const idleTime = now - this.lastMouseMoveTime;
+    if (idleTime > 2500 && this.lastMouseCol >= 0) {
+      const breathRadius = 2;
+      for (let dr = -breathRadius; dr <= breathRadius; dr++) {
+        for (let dc = -breathRadius; dc <= breathRadius; dc++) {
+          const br = this.lastMouseRow + dr;
+          const bc = this.lastMouseCol + dc;
+          if (br < 0 || br >= this.rows || bc < 0 || bc >= this.cols) continue;
+          const dist = Math.sqrt(dc * dc + dr * dr);
+          if (dist > breathRadius) continue;
+          const falloff = 1 - dist / (breathRadius + 1);
+          const phase = bc * 0.5 + br * 0.7; // offset per cell
+          const breath = 0.04 + 0.06 * Math.sin(now * 0.003 + phase) * falloff;
+          const cell = this.cells[br][bc];
+          ctx.beginPath();
+          ctx.roundRect(cell.x, cell.y, cellSize, cellSize, cornerRadius);
+          ctx.fillStyle = `rgba(255, 95, 31, ${breath})`;
+          ctx.fill();
+        }
+      }
+    }
+
     // Draw selection box
     if (this.selectionStart && this.selectionEnd) {
       const step = this.config.cellSize + this.config.gap;
@@ -327,26 +406,60 @@ export class GridCanvas {
       ctx.setLineDash([]);
     }
 
-    // Draw and update disintegrating cells
+    // Draw and update disintegrating cells — grid-snapped fluid dissolve
+    const step = this.config.cellSize + this.config.gap;
     for (let i = this.disintegratingCells.length - 1; i >= 0; i--) {
       const dc = this.disintegratingCells[i];
+
+      // Staggered onset: cell stays put and shimmers until delay expires
+      if (dc.age < dc.delay) {
+        // Pre-dissolve shimmer — cell pulses in place
+        const shimmer = 0.4 + 0.6 * Math.abs(Math.sin(dc.age * 0.3 + dc.phase));
+        ctx.globalAlpha = shimmer * 0.6;
+        ctx.fillStyle = "#FF5F1F";
+        ctx.beginPath();
+        ctx.roundRect(dc.x, dc.y, cellSize, cellSize, cornerRadius);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        dc.age++;
+        continue;
+      }
+
+      // Turbulence: slowly rotate wander angle, apply small perpendicular drift
+      dc.turbulenceAngle += (Math.random() - 0.5) * 0.6;
+      const turbStrength = 0.4;
+      dc.vx += Math.cos(dc.turbulenceAngle) * turbStrength;
+      dc.vy += Math.sin(dc.turbulenceAngle) * turbStrength;
+
+      // Physics: move with heavy drag (viscous fluid)
       dc.x += dc.vx;
       dc.y += dc.vy;
-      dc.vx *= 0.96;
-      dc.vy *= 0.96;
-      dc.opacity -= 0.015;
+      dc.vx *= 0.92;
+      dc.vy *= 0.92;
 
-      if (dc.opacity <= 0) {
+      // Shimmer opacity: oscillate while fading out
+      const activeAge = dc.age - dc.delay;
+      const baseFade = Math.max(0, 1 - activeAge * 0.008);
+      const shimmer = 0.5 + 0.5 * Math.sin(activeAge * 0.15 + dc.phase);
+      dc.opacity = baseFade * (0.4 + shimmer * 0.6);
+
+      if (baseFade <= 0) {
         this.disintegratingCells.splice(i, 1);
         continue;
       }
 
-      ctx.globalAlpha = dc.opacity * 0.6;
+      // Snap render position to nearest grid cell
+      const snapX = Math.round(dc.x / step) * step;
+      const snapY = Math.round(dc.y / step) * step;
+
+      ctx.globalAlpha = dc.opacity * 0.7;
       ctx.fillStyle = "#FF5F1F";
       ctx.beginPath();
-      ctx.roundRect(dc.x, dc.y, this.config.cellSize, this.config.cellSize, this.config.cornerRadius);
+      ctx.roundRect(snapX, snapY, cellSize, cellSize, cornerRadius);
       ctx.fill();
       ctx.globalAlpha = 1;
+
+      dc.age++;
     }
   }
 

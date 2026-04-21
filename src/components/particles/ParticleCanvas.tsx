@@ -15,7 +15,7 @@ export interface ParticleCanvasHandle {
 export const ParticleCanvas = forwardRef<ParticleCanvasHandle>(
   function ParticleCanvas(_, ref) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const engineRef = useRef(new ParticleEngine(50));
+    const engineRef = useRef(new ParticleEngine(120));
 
     useImperativeHandle(ref, () => ({
       emit: (...args) => engineRef.current.emit(...args),

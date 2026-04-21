@@ -36,7 +36,7 @@ export function Hello() {
   return (
     <div
       ref={containerRef}
-      className="mx-auto grid max-w-6xl gap-16 px-6 py-24 lg:grid-cols-[1.2fr_0.8fr] lg:px-16"
+      className="mx-auto grid w-full max-w-6xl gap-16 px-6 py-32 lg:grid-cols-[1.15fr_0.85fr] lg:px-16"
     >
       <div>
         <h2

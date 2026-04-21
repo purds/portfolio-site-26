@@ -4,7 +4,7 @@ import { getProjectsByCategory } from "@/data/projects";
 
 export function Work() {
   return (
-    <div className="mx-auto max-w-6xl px-6 py-24 lg:px-16">
+    <div className="mx-auto w-full max-w-6xl px-6 py-24 lg:px-16">
       {workCategories.map((category) => {
         const categoryProjects = getProjectsByCategory(category.id);
         return (

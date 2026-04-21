@@ -11,7 +11,7 @@ import { About } from "@/components/sections/About";
 import { Contact } from "@/components/sections/Contact";
 import { useActiveSection } from "@/lib/use-active-section";
 import { useIsDesktop } from "@/lib/use-is-desktop";
-import { sections } from "@/data/sections";
+import { sections, workCategories } from "@/data/sections";
 import { CustomCursor } from "@/components/cursor/CustomCursor";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
 import { ParticleCanvas } from "@/components/particles/ParticleCanvas";
@@ -19,6 +19,7 @@ import type { ParticleCanvasHandle } from "@/components/particles/ParticleCanvas
 import { ParticleContext } from "@/lib/particle-context";
 
 const sectionIds = sections.map((s) => s.id);
+const categoryIds = workCategories.map((c) => `category-${c.id}`);
 
 const sectionComponents: Record<string, React.ComponentType> = {
   hero: Hero,
@@ -30,6 +31,8 @@ const sectionComponents: Record<string, React.ComponentType> = {
 
 export default function Home() {
   const activeSection = useActiveSection(sectionIds);
+  const activeCategory = useActiveSection(categoryIds);
+  const activeCategoryId = activeCategory.replace("category-", "");
   const isDesktop = useIsDesktop();
   const reducedMotion = useReducedMotion();
   const particlesRef = useRef<ParticleCanvasHandle>(null);
@@ -54,7 +57,7 @@ export default function Home() {
           <MobileNav activeSection={activeSection} onNavigate={handleNavigate} />
         )
       ) : null}
-      <StatusBar activeSection={activeSection} />
+      <StatusBar activeSection={activeSection} activeCategory={activeCategoryId} />
       {mounted && isDesktop && !reducedMotion && <ParticleCanvas ref={particlesRef} />}
 
       <ParticleContext.Provider value={particlesRef}>

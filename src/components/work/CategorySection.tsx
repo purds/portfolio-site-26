@@ -1,11 +1,10 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import { ProjectCard } from "./ProjectCard";
-import { useIsDesktop } from "@/lib/use-is-desktop";
 import type { Project } from "@/data/projects";
 import type { WorkCategory } from "@/data/sections";
 
@@ -18,22 +17,18 @@ interface CategorySectionProps {
 
 export function CategorySection({ category, projects }: CategorySectionProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const isDesktop = useIsDesktop();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useGSAP(
     () => {
       const cards = gsap.utils.toArray<Element>("[data-card]");
       if (cards.length === 0) return;
 
-      cards.forEach((card, i) => {
-        const fromLeft = i % 2 === 0;
-
+      cards.forEach((card) => {
         gsap.from(card, {
-          x: isDesktop ? (fromLeft ? -60 : 60) : 0,
-          y: 40,
+          y: 30,
           opacity: 0,
-          rotation: isDesktop ? (fromLeft ? -3 : 3) : 0,
-          duration: 0.7,
+          duration: 0.6,
           ease: "expo.out",
           scrollTrigger: {
             trigger: card,
@@ -43,7 +38,7 @@ export function CategorySection({ category, projects }: CategorySectionProps) {
         });
       });
     },
-    { scope: containerRef, dependencies: [isDesktop] }
+    { scope: containerRef }
   );
 
   if (projects.length === 0) return null;
@@ -57,14 +52,15 @@ export function CategorySection({ category, projects }: CategorySectionProps) {
         ({category.number} — {category.label})
       </span>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        {projects.map((project, i) => (
-          <div
-            key={project.id}
-            data-card
-            className={i % 2 === 1 ? "lg:mt-12" : ""}
-          >
-            <ProjectCard project={project} accentColor={category.accent} />
+      <div className="mt-8 flex flex-col gap-3">
+        {projects.map((project) => (
+          <div key={project.id} data-card>
+            <ProjectCard
+              project={project}
+              accentColor={category.accent}
+              expanded={expandedId === project.id}
+              onToggle={() => setExpandedId(expandedId === project.id ? null : project.id)}
+            />
           </div>
         ))}
       </div>
