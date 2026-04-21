@@ -514,7 +514,8 @@ export class GridCanvas {
       for (let b = 0; b < OPACITY_BUCKETS; b++) {
         const n = bc[b];
         if (n === 0) continue;
-        const bucketAlpha = (b + 1) / OPACITY_BUCKETS;
+        // Midpoint of the bucket: bucket 0 covers (0, 0.1], rendered at 0.05; etc.
+        const bucketAlpha = (b + 0.5) / OPACITY_BUCKETS;
         ctx.beginPath();
         const xs = this.bucketColX[b];
         const ys = this.bucketColY[b];

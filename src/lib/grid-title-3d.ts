@@ -45,6 +45,10 @@ export class Title3D {
   private yaw = 0;
   private pitch = 0;
 
+  // Per-frame z-buffer, hoisted so computeCellOpacities() allocates nothing
+  // beyond the returned Map (contract perf rule #2).
+  private zBuffer = new Map<string, number>();
+
   constructor(opts: { frontText: string; backText: string; depth?: number }) {
     const frontBitmap = buildWordBitmap(opts.frontText);
     const backBitmap = buildWordBitmap(opts.backText);
@@ -164,9 +168,9 @@ export class Title3D {
   ): Map<string, number> {
     const result = new Map<string, number>();
 
-    // Z-buffer: smallest rotated.z wins per (col,row).
-    // Use a parallel map to track the winning voxel's depth.
-    const zBuffer = new Map<string, number>();
+    // Z-buffer: smallest rotated.z wins per (col,row). Reused across frames.
+    const zBuffer = this.zBuffer;
+    zBuffer.clear();
 
     const cosY = Math.cos(this.yaw);
     const sinY = Math.sin(this.yaw);
