@@ -14,6 +14,8 @@ The object stays inside the existing grid rendering paradigm (per `feedback_grid
 
 ## Composition
 
+**Grid density for the hero.** `defaultGridConfig.cellSize` is reduced from 28→**20**, `gap` from 3→**2** (step = 22). This gives the 43-cell-wide block room to sit and rotate inside a 1024px+ canvas. Cursor trail / selection-box / disintegration all continue to work — they're all step-agnostic.
+
 **Geometry.** A single rectangular voxel block. Width = max(PURDY width, GOOD width) = **43 cells**. Height = **9 cells**. Depth = **12 cells**. PURDY and GOOD are both centered horizontally within the 43-cell width (PURDY fills it edge-to-edge; GOOD sits centered with ~4 cells of body on each side).
 
 Voxels are classified by position:
